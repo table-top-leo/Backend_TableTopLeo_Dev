@@ -26,32 +26,43 @@ public class BusinessServiceImpl implements BusinessService {
     private final BusinessInformationRepository businessInformationRepository;
     private final UserRepository userRepository;
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm");
 
     @Override
     @Transactional
-    public ApiResponse<BusinessSetupResponse> setupBusiness(BusinessSetupRequest request) {
-        // Validate adminId exists
+    public ApiResponse<BusinessSetupResponse> setupBusiness(
+            BusinessSetupRequest request) {
+
+        // Validate Admin ID
         userRepository.findByAdminId(request.getAdminId())
                 .orElseThrow(() -> new AppException(
-                    "Admin ID not found: " + request.getAdminId(),
-                    HttpStatus.NOT_FOUND
+                        "Admin ID not found: " + request.getAdminId(),
+                        HttpStatus.NOT_FOUND
                 ));
 
-        // Ensure business is not already set up for this admin
+        // Check if business already exists
         if (businessInformationRepository.existsByAdminId(request.getAdminId())) {
             throw new AppException(
-                "Business is already set up for admin ID: " + request.getAdminId(),
-                HttpStatus.CONFLICT
+                    "Business is already set up for admin ID: "
+                            + request.getAdminId(),
+                    HttpStatus.CONFLICT
             );
         }
 
         // Parse times
-        LocalTime openingTime = parseTime(request.getOpeningTime(), "Opening time");
-        LocalTime closingTime = parseTime(request.getClosingTime(), "Closing time");
+        LocalTime openingTime =
+                parseTime(request.getOpeningTime(), "Opening time");
 
-        // Build and save business (first save to get generated id)
+        LocalTime closingTime =
+                parseTime(request.getClosingTime(), "Closing time");
+
+        // Generate Business ID BEFORE SAVE
+        long nextNumber = businessInformationRepository.count() + 1;
+        String businessId = String.format("BUS%06d", nextNumber);
+
         BusinessInformation business = BusinessInformation.builder()
+                .businessId(businessId)
                 .adminId(request.getAdminId())
                 .businessType(request.getBusinessType())
                 .businessName(request.getBusinessName())
@@ -72,31 +83,32 @@ public class BusinessServiceImpl implements BusinessService {
                 .workingDays(request.getWorkingDays())
                 .timezone(request.getTimezone())
                 .businessDescription(nullIfBlank(request.getBusinessDescription()))
-                .setupCompleted(false)
+                .setupCompleted(true)
                 .build();
 
-        BusinessInformation saved = businessInformationRepository.save(business);
+        BusinessInformation saved =
+                businessInformationRepository.save(business);
 
-        // Generate business_id using the database-assigned id
-        String businessId = String.format("BUS%06d", saved.getId());
-        saved.setBusinessId(businessId);
-        saved.setSetupCompleted(true);
-        businessInformationRepository.save(saved);
+        log.info("Business setup completed: {} for admin: {}",
+                businessId,
+                request.getAdminId());
 
-        log.info("Business setup completed: {} for admin: {}", businessId, request.getAdminId());
+        BusinessSetupResponse response =
+                BusinessSetupResponse.builder()
+                        .businessId(saved.getBusinessId())
+                        .adminId(saved.getAdminId())
+                        .businessName(saved.getBusinessName())
+                        .businessType(saved.getBusinessType())
+                        .city(saved.getCity())
+                        .state(saved.getState())
+                        .country(saved.getCountry())
+                        .message("Business setup completed successfully.")
+                        .build();
 
-        BusinessSetupResponse data = BusinessSetupResponse.builder()
-                .businessId(businessId)
-                .adminId(request.getAdminId())
-                .businessName(saved.getBusinessName())
-                .businessType(saved.getBusinessType())
-                .city(saved.getCity())
-                .state(saved.getState())
-                .country(saved.getCountry())
-                .message("Business setup completed successfully.")
-                .build();
-
-        return ApiResponse.success("Business information saved successfully.", data);
+        return ApiResponse.success(
+                "Business information saved successfully.",
+                response
+        );
     }
 
     private LocalTime parseTime(String timeStr, String fieldName) {
@@ -104,13 +116,16 @@ public class BusinessServiceImpl implements BusinessService {
             return LocalTime.parse(timeStr, TIME_FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new AppException(
-                fieldName + " is invalid. Expected format: HH:mm (e.g. 09:00)",
-                HttpStatus.BAD_REQUEST
+                    fieldName +
+                            " is invalid. Expected format: HH:mm (e.g. 09:00)",
+                    HttpStatus.BAD_REQUEST
             );
         }
     }
 
     private String nullIfBlank(String value) {
-        return (value == null || value.isBlank()) ? null : value;
+        return (value == null || value.isBlank())
+                ? null
+                : value.trim();
     }
 }
