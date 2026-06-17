@@ -2,10 +2,6 @@ package com.backendDev.dto;
 
 import lombok.*;
 
-/**
- * Dedicated login response — keeps token at the top level
- * alongside success/message rather than nesting it under a data field.
- */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,4 +12,8 @@ public class LoginApiResponse {
     private boolean success;
     private String message;
     private String token;
+    private String adminId;
+    private String fullName;
+    private String email;
+    private String businessId;
 }

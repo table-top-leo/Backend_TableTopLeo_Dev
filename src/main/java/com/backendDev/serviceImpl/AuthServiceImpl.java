@@ -4,8 +4,10 @@ import com.backendDev.common.AppException;
 import com.backendDev.common.InvalidCredentialsException;
 import com.backendDev.common.OtpGenerator;
 import com.backendDev.dto.*;
+import com.backendDev.model.BusinessInformation;
 import com.backendDev.model.OtpVerification;
 import com.backendDev.model.User;
+import com.backendDev.repo.BusinessInformationRepository;
 import com.backendDev.repo.OtpVerificationRepository;
 import com.backendDev.repo.UserRepository;
 import com.backendDev.security.JwtUtil;
@@ -27,6 +29,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final OtpVerificationRepository otpVerificationRepository;
+    private final BusinessInformationRepository businessInformationRepository;
     private final EmailService emailService;
     private final OtpGenerator otpGenerator;
     private final PasswordEncoder passwordEncoder;
@@ -157,10 +160,18 @@ public class AuthServiceImpl implements AuthService {
             String token = jwtUtil.generateToken(user.getAdminId(), user.getEmail());
             log.info("User login successful for email: {}", email);
 
+            String businessId = businessInformationRepository.findByAdminId(user.getAdminId())
+                    .map(BusinessInformation::getBusinessId)
+                    .orElse(null);
+
             return LoginApiResponse.builder()
                     .success(true)
                     .message("Login successful")
                     .token(token)
+                    .adminId(user.getAdminId())
+                    .fullName(user.getFullName())
+                    .email(user.getEmail())
+                    .businessId(businessId)
                     .build();
 
         } catch (InvalidCredentialsException e) {

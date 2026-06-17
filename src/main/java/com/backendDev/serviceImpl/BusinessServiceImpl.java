@@ -27,28 +27,34 @@ public class BusinessServiceImpl implements BusinessService {
     private final BusinessInformationRepository businessInformationRepository;
     private final UserRepository userRepository;
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm");
 
     @Override
     @Transactional
     public ApiResponse<BusinessSetupResponse> setupBusiness(BusinessSetupRequest request) {
+
         userRepository.findByAdminId(request.getAdminId())
                 .orElseThrow(() -> new AppException(
-                    "Admin ID not found: " + request.getAdminId(),
-                    HttpStatus.NOT_FOUND
+                        "Admin ID not found: " + request.getAdminId(),
+                        HttpStatus.NOT_FOUND
                 ));
 
         if (businessInformationRepository.existsByAdminId(request.getAdminId())) {
             throw new AppException(
-                "Business is already set up for admin ID: " + request.getAdminId(),
-                HttpStatus.CONFLICT
+                    "Business is already set up for admin ID: " + request.getAdminId(),
+                    HttpStatus.CONFLICT
             );
         }
 
         LocalTime openingTime = parseTime(request.getOpeningTime(), "Opening time");
         LocalTime closingTime = parseTime(request.getClosingTime(), "Closing time");
 
+        long nextNumber = businessInformationRepository.count() + 1;
+        String businessId = String.format("BUS%06d", nextNumber);
+
         BusinessInformation business = BusinessInformation.builder()
+                .businessId(businessId)
                 .adminId(request.getAdminId())
                 .businessType(request.getBusinessType())
                 .businessName(request.getBusinessName())
@@ -69,21 +75,16 @@ public class BusinessServiceImpl implements BusinessService {
                 .workingDays(request.getWorkingDays())
                 .timezone(request.getTimezone())
                 .businessDescription(nullIfBlank(request.getBusinessDescription()))
-                .setupCompleted(false)
+                .setupCompleted(true)
                 .build();
 
         BusinessInformation saved = businessInformationRepository.save(business);
 
-        String businessId = String.format("BUS%06d", saved.getId());
-        saved.setBusinessId(businessId);
-        saved.setSetupCompleted(true);
-        businessInformationRepository.save(saved);
-
         log.info("Business setup completed: {} for admin: {}", businessId, request.getAdminId());
 
-        BusinessSetupResponse data = BusinessSetupResponse.builder()
-                .businessId(businessId)
-                .adminId(request.getAdminId())
+        BusinessSetupResponse response = BusinessSetupResponse.builder()
+                .businessId(saved.getBusinessId())
+                .adminId(saved.getAdminId())
                 .businessName(saved.getBusinessName())
                 .businessType(saved.getBusinessType())
                 .city(saved.getCity())
@@ -92,16 +93,18 @@ public class BusinessServiceImpl implements BusinessService {
                 .message("Business setup completed successfully.")
                 .build();
 
-        return ApiResponse.success("Business information saved successfully.", data);
+        return ApiResponse.success("Business information saved successfully.", response);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<BusinessInformationResponse> getBusinessInformation(String adminId) {
+        log.info("Fetching business information for admin ID: [{}]", adminId);
+
         BusinessInformation business = businessInformationRepository.findByAdminId(adminId)
                 .orElseThrow(() -> new AppException(
-                    "Business information not found for admin ID: " + adminId,
-                    HttpStatus.NOT_FOUND
+                        "Business information not found for admin ID: " + adminId,
+                        HttpStatus.NOT_FOUND
                 ));
 
         log.info("Business information fetched for admin: {}", adminId);
@@ -142,13 +145,13 @@ public class BusinessServiceImpl implements BusinessService {
             return LocalTime.parse(timeStr, TIME_FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new AppException(
-                fieldName + " is invalid. Expected format: HH:mm (e.g. 09:00)",
-                HttpStatus.BAD_REQUEST
+                    fieldName + " is invalid. Expected format: HH:mm (e.g. 09:00)",
+                    HttpStatus.BAD_REQUEST
             );
         }
     }
 
     private String nullIfBlank(String value) {
-        return (value == null || value.isBlank()) ? null : value;
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 }
