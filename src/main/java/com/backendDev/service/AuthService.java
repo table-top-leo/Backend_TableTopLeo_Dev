@@ -9,4 +9,6 @@ public interface AuthService {
     ApiResponse<String> verifyOtp(VerifyOtpRequest request);
 
     ApiResponse<CreatePasswordResponse> createPassword(CreatePasswordRequest request);
+
+    LoginApiResponse login(LoginRequest request);
 }

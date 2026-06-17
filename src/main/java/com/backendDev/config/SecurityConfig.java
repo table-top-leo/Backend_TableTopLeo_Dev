@@ -1,5 +1,6 @@
 package com.backendDev.config;
 
+import com.backendDev.security.JwtAuthEntryPoint;
 import com.backendDev.security.JwtFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
+    private final JwtAuthEntryPoint jwtAuthEntryPoint;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -25,11 +27,17 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
+            .exceptionHandling(ex ->
+                ex.authenticationEntryPoint(jwtAuthEntryPoint)
+            )
             .authorizeHttpRequests(auth -> auth
-                // Phase 1 — all registration and business setup are public
+                // Public — registration and login flows
                 .requestMatchers("/api/auth/**").permitAll()
+                // Public — initial business setup (uses adminId from registration, no token yet)
                 .requestMatchers("/api/business/setup").permitAll()
-                // All other endpoints require authentication (Phase 2+)
+                // Protected — business information requires a valid JWT
+                .requestMatchers("/api/business-information/**").authenticated()
+                // All other endpoints require authentication
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

@@ -1,5 +1,6 @@
 package com.backendDev.controller;
 
+import com.backendDev.constants.ApiConstants;
 import com.backendDev.dto.ApiResponse;
 import com.backendDev.dto.BusinessSetupRequest;
 import com.backendDev.dto.BusinessSetupResponse;
@@ -23,7 +24,7 @@ public class BusinessController {
      *
      * POST /api/business/setup
      */
-    @PostMapping("/setup")
+    @PostMapping(ApiConstants.BUSINESS_SETUP)
     public ResponseEntity<ApiResponse<BusinessSetupResponse>> setupBusiness(
             @Valid @RequestBody BusinessSetupRequest request) {
         ApiResponse<BusinessSetupResponse> response = businessService.setupBusiness(request);

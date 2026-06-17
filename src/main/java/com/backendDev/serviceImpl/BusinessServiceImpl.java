@@ -2,6 +2,7 @@ package com.backendDev.serviceImpl;
 
 import com.backendDev.common.AppException;
 import com.backendDev.dto.ApiResponse;
+import com.backendDev.dto.BusinessInformationResponse;
 import com.backendDev.dto.BusinessSetupRequest;
 import com.backendDev.dto.BusinessSetupResponse;
 import com.backendDev.model.BusinessInformation;
@@ -31,14 +32,12 @@ public class BusinessServiceImpl implements BusinessService {
     @Override
     @Transactional
     public ApiResponse<BusinessSetupResponse> setupBusiness(BusinessSetupRequest request) {
-        // Validate adminId exists
         userRepository.findByAdminId(request.getAdminId())
                 .orElseThrow(() -> new AppException(
                     "Admin ID not found: " + request.getAdminId(),
                     HttpStatus.NOT_FOUND
                 ));
 
-        // Ensure business is not already set up for this admin
         if (businessInformationRepository.existsByAdminId(request.getAdminId())) {
             throw new AppException(
                 "Business is already set up for admin ID: " + request.getAdminId(),
@@ -46,11 +45,9 @@ public class BusinessServiceImpl implements BusinessService {
             );
         }
 
-        // Parse times
         LocalTime openingTime = parseTime(request.getOpeningTime(), "Opening time");
         LocalTime closingTime = parseTime(request.getClosingTime(), "Closing time");
 
-        // Build and save business (first save to get generated id)
         BusinessInformation business = BusinessInformation.builder()
                 .adminId(request.getAdminId())
                 .businessType(request.getBusinessType())
@@ -77,7 +74,6 @@ public class BusinessServiceImpl implements BusinessService {
 
         BusinessInformation saved = businessInformationRepository.save(business);
 
-        // Generate business_id using the database-assigned id
         String businessId = String.format("BUS%06d", saved.getId());
         saved.setBusinessId(businessId);
         saved.setSetupCompleted(true);
@@ -97,6 +93,48 @@ public class BusinessServiceImpl implements BusinessService {
                 .build();
 
         return ApiResponse.success("Business information saved successfully.", data);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<BusinessInformationResponse> getBusinessInformation(String adminId) {
+        BusinessInformation business = businessInformationRepository.findByAdminId(adminId)
+                .orElseThrow(() -> new AppException(
+                    "Business information not found for admin ID: " + adminId,
+                    HttpStatus.NOT_FOUND
+                ));
+
+        log.info("Business information fetched for admin: {}", adminId);
+        return ApiResponse.success("Business information fetched successfully", mapToResponse(business));
+    }
+
+    private BusinessInformationResponse mapToResponse(BusinessInformation business) {
+        return BusinessInformationResponse.builder()
+                .businessId(business.getBusinessId())
+                .adminId(business.getAdminId())
+                .businessType(business.getBusinessType())
+                .businessName(business.getBusinessName())
+                .businessEmail(business.getBusinessEmail())
+                .businessPhone(business.getBusinessPhone())
+                .logoUrl(business.getLogoUrl())
+                .gstNumber(business.getGstNumber())
+                .licenseNumber(business.getLicenseNumber())
+                .website(business.getWebsite())
+                .addressLine1(business.getAddressLine1())
+                .addressLine2(business.getAddressLine2())
+                .city(business.getCity())
+                .state(business.getState())
+                .country(business.getCountry())
+                .postalCode(business.getPostalCode())
+                .openingTime(business.getOpeningTime())
+                .closingTime(business.getClosingTime())
+                .workingDays(business.getWorkingDays())
+                .timezone(business.getTimezone())
+                .businessDescription(business.getBusinessDescription())
+                .setupCompleted(business.getSetupCompleted())
+                .createdAt(business.getCreatedAt())
+                .updatedAt(business.getUpdatedAt())
+                .build();
     }
 
     private LocalTime parseTime(String timeStr, String fieldName) {

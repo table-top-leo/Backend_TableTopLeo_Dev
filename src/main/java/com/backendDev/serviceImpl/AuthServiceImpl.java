@@ -1,12 +1,14 @@
 package com.backendDev.serviceImpl;
 
 import com.backendDev.common.AppException;
+import com.backendDev.common.InvalidCredentialsException;
 import com.backendDev.common.OtpGenerator;
 import com.backendDev.dto.*;
 import com.backendDev.model.OtpVerification;
 import com.backendDev.model.User;
 import com.backendDev.repo.OtpVerificationRepository;
 import com.backendDev.repo.UserRepository;
+import com.backendDev.security.JwtUtil;
 import com.backendDev.service.AuthService;
 import com.backendDev.service.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -28,13 +30,13 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final OtpGenerator otpGenerator;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     private static final int OTP_VALIDITY_MINUTES = 5;
 
     @Override
     @Transactional
     public ApiResponse<RegisterResponse> register(RegisterRequest request) {
-        // Check if email already registered
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(
                 "Email is already registered. Please use a different email or proceed to login.",
@@ -42,7 +44,6 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // Save user record with basic details
         User user = User.builder()
                 .fullName(request.getFullName())
                 .email(request.getEmail())
@@ -53,7 +54,6 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         log.info("New user pre-registered with email: {}", request.getEmail());
 
-        // Generate OTP and save
         String otp = otpGenerator.generate();
         otpVerificationRepository.deleteByEmail(request.getEmail());
 
@@ -65,7 +65,6 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         otpVerificationRepository.save(otpVerification);
 
-        // Send OTP email
         emailService.sendOtpEmail(request.getEmail(), otp, request.getFullName());
 
         RegisterResponse data = RegisterResponse.builder()
@@ -98,11 +97,9 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException("Invalid OTP. Please check and try again.", HttpStatus.BAD_REQUEST);
         }
 
-        // Mark OTP as verified
         otpVerification.setVerified(true);
         otpVerificationRepository.save(otpVerification);
 
-        // Mark user email as verified
         user.setEmailVerified(true);
         userRepository.save(user);
 
@@ -128,10 +125,8 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException("Password and confirm password do not match.", HttpStatus.BAD_REQUEST);
         }
 
-        // Encrypt and save password
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
-        // Generate admin_id using the database-assigned id
         String adminId = String.format("ADM%06d", user.getId());
         user.setAdminId(adminId);
 
@@ -145,5 +140,34 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         return ApiResponse.success("Account created successfully. Please proceed to business setup.", data);
+    }
+
+    @Override
+    public LoginApiResponse login(LoginRequest request) {
+        String email = request.getEmail();
+        try {
+            User user = userRepository.findByEmail(email).orElse(null);
+
+            if (user == null || user.getPasswordHash() == null
+                    || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+                log.warn("Failed login attempt for email: {}", email);
+                throw new InvalidCredentialsException();
+            }
+
+            String token = jwtUtil.generateToken(user.getAdminId(), user.getEmail());
+            log.info("User login successful for email: {}", email);
+
+            return LoginApiResponse.builder()
+                    .success(true)
+                    .message("Login successful")
+                    .token(token)
+                    .build();
+
+        } catch (InvalidCredentialsException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error during login process", e);
+            throw e;
+        }
     }
 }
