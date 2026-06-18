@@ -11,4 +11,8 @@ public interface AuthService {
     ApiResponse<CreatePasswordResponse> createPassword(CreatePasswordRequest request);
 
     LoginApiResponse login(LoginRequest request);
+
+    ApiResponse<Void> changePassword(String adminId, ChangePasswordRequest request);
+
+    ApiResponse<Void> deleteAccount(String adminId);
 }

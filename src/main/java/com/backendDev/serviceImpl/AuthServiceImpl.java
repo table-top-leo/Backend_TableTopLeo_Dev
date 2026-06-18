@@ -42,8 +42,8 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<RegisterResponse> register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(
-                "Email is already registered. Please use a different email or proceed to login.",
-                HttpStatus.CONFLICT
+                    "Email is already registered. Please use a different email or proceed to login.",
+                    HttpStatus.CONFLICT
             );
         }
 
@@ -180,5 +180,43 @@ public class AuthServiceImpl implements AuthService {
             log.error("Error during login process", e);
             throw e;
         }
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> changePassword(String adminId, ChangePasswordRequest request) {
+        User user = userRepository.findByAdminId(adminId)
+                .orElseThrow(() -> new AppException("User not found.", HttpStatus.NOT_FOUND));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new AppException("Current password is incorrect.", HttpStatus.BAD_REQUEST);
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException("New password and confirm password do not match.", HttpStatus.BAD_REQUEST);
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new AppException("New password must be different from the current password.", HttpStatus.BAD_REQUEST);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password changed successfully for admin: {}", adminId);
+
+        return ApiResponse.success("Password changed successfully.");
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> deleteAccount(String adminId) {
+        User user = userRepository.findByAdminId(adminId)
+                .orElseThrow(() -> new AppException("User not found.", HttpStatus.NOT_FOUND));
+
+        otpVerificationRepository.deleteByEmail(user.getEmail());
+        userRepository.delete(user);
+
+        log.info("User account deleted from tabletop_leo_users for adminId: {}", adminId);
+        return ApiResponse.success("Account deleted successfully.");
     }
 }
