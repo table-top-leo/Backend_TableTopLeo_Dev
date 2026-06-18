@@ -8,6 +8,7 @@ import com.backendDev.model.Category;
 import com.backendDev.repo.CategoryRepository;
 import com.backendDev.repo.ProductRepository;
 import com.backendDev.service.CategoryService;
+import com.backendDev.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final FileStorageService fileStorageService;
 
     @Override
     @Transactional
@@ -96,8 +98,16 @@ public class CategoryServiceImpl implements CategoryService {
             );
         }
 
+        String oldImageUrl = category.getCategoryImageUrl();
+        String newImageUrl = nullIfBlank(request.getCategoryImageUrl());
+
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            String oldFilename = fileStorageService.extractFilename(oldImageUrl);
+            fileStorageService.deleteFile("categories", oldFilename);
+        }
+
         category.setCategoryName(request.getCategoryName().trim());
-        category.setCategoryImageUrl(nullIfBlank(request.getCategoryImageUrl()));
+        category.setCategoryImageUrl(newImageUrl);
         if (request.getCategoryStatus() != null) {
             category.setCategoryStatus(request.getCategoryStatus());
         }
@@ -114,6 +124,16 @@ public class CategoryServiceImpl implements CategoryService {
     public ApiResponse<Void> deleteCategory(Long categoryId, String adminId) {
         Category category = categoryRepository.findByCategoryIdAndAdminId(categoryId, adminId)
                 .orElseThrow(() -> new AppException("Category not found.", HttpStatus.NOT_FOUND));
+
+        List<com.backendDev.model.Product> products =
+                productRepository.findByCategoryIdOrderByCreatedAtDesc(categoryId);
+        for (com.backendDev.model.Product p : products) {
+            String imgFilename = fileStorageService.extractFilename(p.getItemImageUrl());
+            fileStorageService.deleteFile("products", imgFilename);
+        }
+
+        String catFilename = fileStorageService.extractFilename(category.getCategoryImageUrl());
+        fileStorageService.deleteFile("categories", catFilename);
 
         productRepository.deleteAllByCategoryId(categoryId);
         categoryRepository.delete(category);

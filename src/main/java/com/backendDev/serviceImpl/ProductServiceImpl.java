@@ -8,6 +8,7 @@ import com.backendDev.model.Category;
 import com.backendDev.model.Product;
 import com.backendDev.repo.CategoryRepository;
 import com.backendDev.repo.ProductRepository;
+import com.backendDev.service.FileStorageService;
 import com.backendDev.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final FileStorageService fileStorageService;
 
     @Override
     @Transactional
@@ -106,11 +108,19 @@ public class ProductServiceImpl implements ProductService {
                         request.getCategoryId(), adminId)
                 .orElseThrow(() -> new AppException("Category not found.", HttpStatus.NOT_FOUND));
 
+        String oldImageUrl = product.getItemImageUrl();
+        String newImageUrl = nullIfBlank(request.getItemImageUrl());
+
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            String oldFilename = fileStorageService.extractFilename(oldImageUrl);
+            fileStorageService.deleteFile("products", oldFilename);
+        }
+
         product.setCategoryId(request.getCategoryId());
         product.setItemName(request.getItemName().trim());
         product.setItemDescription(nullIfBlank(request.getItemDescription()));
         product.setItemPrice(request.getItemPrice());
-        product.setItemImageUrl(nullIfBlank(request.getItemImageUrl()));
+        product.setItemImageUrl(newImageUrl);
         if (request.getProductStatus() != null) {
             product.setProductStatus(request.getProductStatus());
         }
@@ -126,6 +136,9 @@ public class ProductServiceImpl implements ProductService {
     public ApiResponse<Void> deleteProduct(Long productId, String adminId) {
         Product product = productRepository.findByProductIdAndAdminId(productId, adminId)
                 .orElseThrow(() -> new AppException("Product not found.", HttpStatus.NOT_FOUND));
+
+        String imgFilename = fileStorageService.extractFilename(product.getItemImageUrl());
+        fileStorageService.deleteFile("products", imgFilename);
 
         productRepository.delete(product);
         log.info("Product deleted: {} for admin: {}", productId, adminId);
