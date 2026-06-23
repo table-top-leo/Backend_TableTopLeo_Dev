@@ -20,4 +20,12 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     @Query("SELECT COUNT(c) FROM Category c WHERE c.adminId = :adminId")
     long countByAdminId(@Param("adminId") String adminId);
+
+
+    // ── NEW — Phase 5 (Public Menu) ──────────────────────────────────────────
+    // Used by QrCodeService to load active categories for customer menu page
+
+    List<Category> findAllByBusinessIdAndCategoryStatus(String businessId, String categoryStatus);
+
+    List<Category> findAllByBusinessId(String businessId);
 }

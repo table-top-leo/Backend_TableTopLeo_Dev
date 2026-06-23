@@ -37,12 +37,24 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+
+                        // ── Existing public endpoints ──
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/business/setup").permitAll()
+
+                        // ── Phase 5: Public customer menu — no auth needed (QR scan) ──
+                        .requestMatchers("/api/menu/**").permitAll()
+
+                        // ── Existing protected endpoints ──
                         .requestMatchers("/api/business-information/**").authenticated()
                         .requestMatchers("/api/categories/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/images/**").authenticated()
+
+                        // ── Phase 4 + 5: Payment & QR (JWT protected) ──
+                        .requestMatchers("/api/payment/**").authenticated()
+                        .requestMatchers("/api/qr/**").authenticated()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

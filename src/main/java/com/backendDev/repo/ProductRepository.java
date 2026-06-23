@@ -25,4 +25,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query("SELECT p.categoryId, COUNT(p) FROM Product p WHERE p.adminId = :adminId GROUP BY p.categoryId")
     List<Object[]> countProductsGroupedByCategoryForAdmin(@Param("adminId") String adminId);
+
+
+    // ── NEW — Phase 5 (Public Menu) ──────────────────────────────────────────
+    // Used by QrCodeService to load products per category for the customer menu
+
+    List<Product> findAllByCategoryIdAndProductStatus(Long categoryId, String productStatus);
+
+    List<Product> findAllByBusinessIdAndProductStatus(String businessId, String productStatus);
 }
