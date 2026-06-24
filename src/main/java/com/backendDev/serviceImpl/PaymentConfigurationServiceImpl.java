@@ -166,8 +166,14 @@ public class PaymentConfigurationServiceImpl implements PaymentConfigurationServ
                 .adminId(config.getAdminId())
                 .businessId(config.getBusinessId())
                 .paymentType(config.getPaymentType())
+                // UPI
                 .merchantName(config.getMerchantName())
                 .upiId(config.getUpiId())
+                // Razorpay / Stripe publishable key
+                .publishableKey(config.getPublishableKey())
+                // PayPal
+                .paypalClientId(config.getPaypalClientId())
+                // Common
                 .environment(config.getEnvironment())
                 .status(config.getStatus())
                 .createdAt(config.getCreatedAt())

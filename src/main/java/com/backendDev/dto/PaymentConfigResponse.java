@@ -5,7 +5,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Response DTO for payment configuration data returned to frontend.
+ * UPDATED — Response DTO for all payment configurations.
+ * Covers UPI, Razorpay, Stripe and PayPal fields.
+ * Secret keys are NOT returned to frontend for security.
  */
 @Getter
 @Setter
@@ -20,6 +22,10 @@ public class PaymentConfigResponse {
     private String paymentType;
     private String merchantName;
     private String upiId;
+    private String publishableKey;
+    // ── Stripe fields ──────────────────────────
+    // publishableKey also used for Stripe pk_test_xxx
+    private String paypalClientId;
     private String environment;
     private String status;
     private LocalDateTime createdAt;
