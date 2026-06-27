@@ -54,6 +54,7 @@ public class SecurityConfig {
                         // ── Phase 4 + 5: Payment & QR (JWT protected) ──
                         .requestMatchers("/api/payment/**").authenticated()
                         .requestMatchers("/api/qr/**").authenticated()
+                        .requestMatchers("/api/suggestions/**").authenticated()
 
                         .anyRequest().authenticated()
                 )
