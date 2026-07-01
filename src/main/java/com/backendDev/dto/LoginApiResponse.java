@@ -16,4 +16,5 @@ public class LoginApiResponse {
     private String fullName;
     private String email;
     private String businessId;
+    private String logoUrl;
 }

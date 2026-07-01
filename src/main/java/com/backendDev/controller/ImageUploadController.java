@@ -41,6 +41,13 @@ public class ImageUploadController {
         return ResponseEntity.ok(uploadImage(file, "products"));
     }
 
+    // ── NEW: Business Logo Upload ────────────────────────────
+    @PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ImageUploadResponse>> uploadLogoImage(
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(uploadImage(file, "logos"));
+    }
+
     @DeleteMapping("/category/{filename}")
     public ResponseEntity<ApiResponse<Void>> deleteCategoryImage(@PathVariable String filename) {
         fileStorageService.deleteFile("categories", filename);
@@ -51,6 +58,12 @@ public class ImageUploadController {
     public ResponseEntity<ApiResponse<Void>> deleteProductImage(@PathVariable String filename) {
         fileStorageService.deleteFile("products", filename);
         return ResponseEntity.ok(ApiResponse.success("Image deleted successfully."));
+    }
+
+    @DeleteMapping("/logo/{filename}")
+    public ResponseEntity<ApiResponse<Void>> deleteLogoImage(@PathVariable String filename) {
+        fileStorageService.deleteFile("logos", filename);
+        return ResponseEntity.ok(ApiResponse.success("Logo deleted successfully."));
     }
 
     private ApiResponse<ImageUploadResponse> uploadImage(MultipartFile file, String subFolder) {
@@ -70,10 +83,10 @@ public class ImageUploadController {
             throw new AppException("File size exceeds 5MB limit.", HttpStatus.BAD_REQUEST);
         }
 
-        String filename      = fileStorageService.storeFile(file, subFolder);
-        String imageUrl      = fileStorageService.buildImageUrl(subFolder, filename);
-        String imagePath     = "/uploads/" + subFolder + "/" + filename;
-        String originalName  = file.getOriginalFilename();
+        String filename     = fileStorageService.storeFile(file, subFolder);
+        String imageUrl     = fileStorageService.buildImageUrl(subFolder, filename);
+        String imagePath    = "/uploads/" + subFolder + "/" + filename;
+        String originalName = file.getOriginalFilename();
 
         log.info("Image uploaded: {} -> {}", originalName, imageUrl);
 

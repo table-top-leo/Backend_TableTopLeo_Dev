@@ -160,9 +160,15 @@ public class AuthServiceImpl implements AuthService {
             String token = jwtUtil.generateToken(user.getAdminId(), user.getEmail());
             log.info("User login successful for email: {}", email);
 
-            String businessId = businessInformationRepository.findByAdminId(user.getAdminId())
-                    .map(BusinessInformation::getBusinessId)
-                    .orElse(null);
+            // Fetch businessId AND logoUrl from business information
+            String businessId = null;
+            String logoUrl    = null;
+
+            var businessOpt = businessInformationRepository.findByAdminId(user.getAdminId());
+            if (businessOpt.isPresent()) {
+                businessId = businessOpt.get().getBusinessId();
+                logoUrl    = businessOpt.get().getLogoUrl();
+            }
 
             return LoginApiResponse.builder()
                     .success(true)
@@ -172,6 +178,7 @@ public class AuthServiceImpl implements AuthService {
                     .fullName(user.getFullName())
                     .email(user.getEmail())
                     .businessId(businessId)
+                    .logoUrl(logoUrl)
                     .build();
 
         } catch (InvalidCredentialsException e) {
@@ -181,7 +188,6 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         }
     }
-
     @Override
     @Transactional
     public ApiResponse<Void> changePassword(String adminId, ChangePasswordRequest request) {
