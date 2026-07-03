@@ -56,6 +56,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/qr/**").authenticated()
                         .requestMatchers("/api/suggestions/**").authenticated()
 
+
+                        .requestMatchers("/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/validate-reset-token").permitAll()
+                        .requestMatchers("/api/auth/reset-password").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
