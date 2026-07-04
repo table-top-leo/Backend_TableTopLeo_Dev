@@ -61,6 +61,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/validate-reset-token").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
 
+                         //customer flow api's
+                        .requestMatchers("/api/customer/session").permitAll()
+                        .requestMatchers("/api/customer/order").permitAll()
+                        .requestMatchers("/api/customer/payment/initiate").permitAll()
+                        .requestMatchers("/api/customer/payment/confirm").permitAll()
+                        .requestMatchers("/api/customer/order/*/status").permitAll()
+
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
