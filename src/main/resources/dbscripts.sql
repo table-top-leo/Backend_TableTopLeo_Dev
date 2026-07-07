@@ -99,3 +99,28 @@ CREATE INDEX IF NOT EXISTS idx_pay_status        ON tabletop_leo_order_payments(
 
 -- Order number sequence per business (optional helper)
 CREATE SEQUENCE IF NOT EXISTS tabletop_leo_order_seq START 1000 INCREMENT 1;
+
+
+
+
+
+-------New alter columns************************************************************************
+select * from tabletop_leo_payment_configurations
+
+
+ALTER TABLE tabletop_leo_orders
+    ADD COLUMN IF NOT EXISTS pay_at_counter BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE tabletop_leo_payment_configurations
+    ADD COLUMN IF NOT EXISTS pay_at_counter_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'tabletop_leo_orders'
+  AND column_name = 'pay_at_counter';
+
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'tabletop_leo_payment_configurations'
+  AND column_name = 'pay_at_counter_enabled';
+
