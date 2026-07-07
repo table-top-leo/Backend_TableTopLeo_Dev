@@ -71,6 +71,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/customer/payment/confirm").permitAll()
                         .requestMatchers("/api/customer/order/*/status").permitAll()
 
+                             //real orders api
+                        .requestMatchers("/api/admin/orders/**").authenticated()
+
 
                         .anyRequest().authenticated()
                 )
