@@ -2,21 +2,11 @@ package com.backendDev.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
-/**
- * Phase 4 — Payment Configuration Entity
- * Stores UPI payment details for each admin/business.
- * admin_id and business_id are auto-resolved from JWT — never entered by admin.
- */
 @Entity
 @Table(name = "tabletop_leo_payment_configurations")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PaymentConfiguration {
 
     @Id
@@ -30,7 +20,7 @@ public class PaymentConfiguration {
     private String businessId;
 
     @Column(name = "payment_type", nullable = false, length = 50)
-    private String paymentType; // upi / razorpay / stripe / paypal
+    private String paymentType;
 
     @Column(name = "merchant_name", length = 255)
     private String merchantName;
@@ -58,6 +48,11 @@ public class PaymentConfiguration {
     @Builder.Default
     private String status = "ACTIVE";
 
+    // ── NEW: Pay At Counter toggle — admin enables/disables from Payment Setup ──
+    @Column(name = "pay_at_counter_enabled", nullable = false)
+    @Builder.Default
+    private Boolean payAtCounterEnabled = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -70,6 +65,7 @@ public class PaymentConfiguration {
         updatedAt = LocalDateTime.now();
         if (status == null) status = "ACTIVE";
         if (environment == null) environment = "sandbox";
+        if (payAtCounterEnabled == null) payAtCounterEnabled = false;
     }
 
     @PreUpdate

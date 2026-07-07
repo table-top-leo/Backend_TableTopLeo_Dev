@@ -38,18 +38,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
 
-                        // ── Existing public endpoints ──
+                        // ── setup public endpoints ──
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/business/setup").permitAll()
 
                         // ── Phase 5: Public customer menu — no auth needed (QR scan) ──
                         .requestMatchers("/api/menu/**").permitAll()
 
-                        // ── Existing protected endpoints ──
+                        // ──  business info ──
                         .requestMatchers("/api/business-information/**").authenticated()
                         .requestMatchers("/api/categories/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/images/**").authenticated()
+
+                        // pay at counter
+                        .requestMatchers(HttpMethod.GET, "/api/payment/pay-at-counter/status").permitAll()
 
                         // ── Phase 4 + 5: Payment & QR (JWT protected) ──
                         .requestMatchers("/api/payment/**").authenticated()
@@ -61,7 +64,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/validate-reset-token").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
 
-                         //customer flow api's
+                        //customer flow api's
                         .requestMatchers("/api/customer/session").permitAll()
                         .requestMatchers("/api/customer/order").permitAll()
                         .requestMatchers("/api/customer/payment/initiate").permitAll()

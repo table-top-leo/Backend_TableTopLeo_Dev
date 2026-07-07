@@ -120,8 +120,9 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .taxAmount(tax)
                 .discountAmount(BigDecimal.ZERO)
                 .grandTotal(total)
-                .paymentStatus("PENDING")
+                .paymentStatus(Boolean.TRUE.equals(request.getPayAtCounter()) ? "PAY_AT_COUNTER" : "PENDING")
                 .orderStatus("PLACED")
+                .payAtCounter(Boolean.TRUE.equals(request.getPayAtCounter()))
                 .estimatedMinutes(EST_MINUTES)
                 .build();
 
@@ -172,7 +173,10 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .orderType(request.getOrderType()).tableNumber(request.getTableNumber())
                 .customerName(request.getCustomerName()).customerPhone(request.getCustomerPhone())
                 .customerNote(request.getCustomerNote()).subtotal(subtotal).taxAmount(tax)
-                .grandTotal(total).paymentStatus("PENDING").orderStatus("PLACED")
+                .grandTotal(total)
+                .paymentStatus(Boolean.TRUE.equals(request.getPayAtCounter()) ? "PAY_AT_COUNTER" : "PENDING")
+                .orderStatus("PLACED")
+                .payAtCounter(Boolean.TRUE.equals(request.getPayAtCounter()))
                 .items(itemDtos).createdAt(order.getCreatedAt())
                 .build());
     }

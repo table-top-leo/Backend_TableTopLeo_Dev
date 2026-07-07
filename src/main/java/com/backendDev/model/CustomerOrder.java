@@ -30,7 +30,7 @@ public class CustomerOrder {
     private String businessId;
 
     @Column(name = "order_type", nullable = false, length = 20)
-    private String orderType;  // DINE_IN | TAKE_AWAY
+    private String orderType;
 
     @Column(name = "table_number", length = 20)
     private String tableNumber;
@@ -65,17 +65,24 @@ public class CustomerOrder {
 
     @Column(name = "payment_status", nullable = false, length = 20)
     @Builder.Default
-    private String paymentStatus = "PENDING";  // PENDING | PAID | FAILED
+    private String paymentStatus = "PENDING";
 
     @Column(name = "order_status", nullable = false, length = 20)
     @Builder.Default
-    private String orderStatus = "PLACED";  // PLACED | ACCEPTED | PREPARING | READY | COMPLETED | CANCELLED
+    private String orderStatus = "PLACED";
 
     @Column(name = "payment_method", length = 30)
-    private String paymentMethod;  // upi | razorpay | stripe | paypal
+    private String paymentMethod;
 
     @Column(name = "estimated_minutes")
     private Integer estimatedMinutes;
+
+    // ── NEW: Pay At Counter ──────────────────────────────────────
+    // true  = customer chose to pay at counter/cashier
+    // false = customer paid online (default)
+    @Column(name = "pay_at_counter", nullable = false)
+    @Builder.Default
+    private Boolean payAtCounter = false;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -87,8 +94,9 @@ public class CustomerOrder {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        if (paymentStatus == null) paymentStatus = "PENDING";
-        if (orderStatus   == null) orderStatus   = "PLACED";
+        if (paymentStatus == null)  paymentStatus  = "PENDING";
+        if (orderStatus   == null)  orderStatus    = "PLACED";
+        if (payAtCounter  == null)  payAtCounter   = false;
     }
 
     @PreUpdate

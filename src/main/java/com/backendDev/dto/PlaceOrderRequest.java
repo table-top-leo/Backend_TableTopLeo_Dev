@@ -15,7 +15,7 @@ public class PlaceOrderRequest {
     private String businessId;
 
     @NotBlank(message = "orderType is required")
-    private String orderType;  // DINE_IN | TAKE_AWAY
+    private String orderType;
 
     private String tableNumber;
     private String customerName;
@@ -23,17 +23,22 @@ public class PlaceOrderRequest {
     private String customerEmail;
     private String customerNote;
 
+    // ── NEW: Pay At Counter ──────────────────────────────────────
+    // Frontend sends true if customer toggles Pay at Counter
+    @Builder.Default
+    private Boolean payAtCounter = false;
+
     @NotEmpty(message = "Cart cannot be empty")
     private List<CartItemDto> items;
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class CartItemDto {
-        @NotNull private Long productId;
+        @NotNull  private Long productId;
         @NotBlank private String productName;
         private String productDescription;
         private String productImageUrl;
         private String categoryName;
-        @NotNull private BigDecimal unitPrice;
+        @NotNull  private BigDecimal unitPrice;
         @NotNull @Min(1) private Integer quantity;
         private String specialRequest;
     }

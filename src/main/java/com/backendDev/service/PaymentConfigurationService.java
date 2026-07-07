@@ -17,4 +17,10 @@ public interface PaymentConfigurationService {
     ApiResponse<List<PaymentConfigResponse>> getAllConfigsByAdmin();
 
     ApiResponse<String> deleteUpiConfig();
+
+    // ── NEW: Pay At Counter toggle ────────────────────────────────
+    ApiResponse<PaymentConfigResponse> togglePayAtCounter(Boolean enabled);
+
+    // GET current admin's saved Pay at Counter status (for admin page load)
+    ApiResponse<Boolean> getMyPayAtCounterStatus();
 }

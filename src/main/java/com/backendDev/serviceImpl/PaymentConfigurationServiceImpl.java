@@ -140,6 +140,66 @@ public class PaymentConfigurationServiceImpl implements PaymentConfigurationServ
     }
 
     // ──────────────────────────────────────────────
+    // PAY AT COUNTER TOGGLE
+    // ──────────────────────────────────────────────
+    @Override
+    @Transactional
+    public ApiResponse<PaymentConfigResponse> togglePayAtCounter(Boolean enabled) {
+        String adminId    = resolveAdminId();
+        String businessId = resolveBusinessId(adminId);
+        List<PaymentConfiguration> configs = paymentRepo.findAllByAdminId(adminId);
+
+        if (configs.isEmpty()) {
+            // Create a minimal record just to hold the setting
+            PaymentConfiguration pac = PaymentConfiguration.builder()
+                    .adminId(adminId)
+                    .businessId(businessId)
+                    .paymentType("PAY_AT_COUNTER")
+                    .payAtCounterEnabled(Boolean.TRUE.equals(enabled))
+                    .status("ACTIVE")
+                    .environment("live")
+                    .build();
+            PaymentConfiguration saved = paymentRepo.save(pac);
+            log.info("Pay At Counter setting created for admin={}, enabled={}", adminId, enabled);
+            return ApiResponse.success(
+                    Boolean.TRUE.equals(enabled) ? "Pay at Counter enabled." : "Pay at Counter disabled.",
+                    toResponse(saved));
+        }
+
+        // Update first config row (or the PAY_AT_COUNTER row if exists)
+        PaymentConfiguration target = configs.stream()
+                .filter(c -> "PAY_AT_COUNTER".equals(c.getPaymentType()))
+                .findFirst()
+                .orElse(configs.get(0));
+
+        target.setPayAtCounterEnabled(Boolean.TRUE.equals(enabled));
+        PaymentConfiguration updated = paymentRepo.save(target);
+        log.info("Pay At Counter toggled for admin={}, enabled={}", adminId, enabled);
+
+        return ApiResponse.success(
+                Boolean.TRUE.equals(enabled) ? "Pay at Counter enabled." : "Pay at Counter disabled.",
+                toResponse(updated));
+    }
+
+    // ──────────────────────────────────────────────
+    // GET PAY AT COUNTER STATUS (public — for customer page)
+    // ──────────────────────────────────────────────
+    public Boolean getPayAtCounterStatus(String businessId) {
+        List<PaymentConfiguration> configs = paymentRepo.findAllByBusinessId(businessId);
+        return configs.stream()
+                .anyMatch(c -> Boolean.TRUE.equals(c.getPayAtCounterEnabled()));
+    }
+
+    @Override
+    public ApiResponse<Boolean> getMyPayAtCounterStatus() {
+        String adminId = resolveAdminId();
+        List<PaymentConfiguration> configs = paymentRepo.findAllByAdminId(adminId);
+        boolean enabled = configs.stream()
+                .anyMatch(c -> Boolean.TRUE.equals(c.getPayAtCounterEnabled()));
+        return ApiResponse.success("Pay at Counter status fetched", enabled);
+    }
+
+    // ──────────────────────────────────────────────
     // PRIVATE HELPERS
     // ──────────────────────────────────────────────
 
@@ -166,16 +226,13 @@ public class PaymentConfigurationServiceImpl implements PaymentConfigurationServ
                 .adminId(config.getAdminId())
                 .businessId(config.getBusinessId())
                 .paymentType(config.getPaymentType())
-                // UPI
                 .merchantName(config.getMerchantName())
                 .upiId(config.getUpiId())
-                // Razorpay / Stripe publishable key
                 .publishableKey(config.getPublishableKey())
-                // PayPal
                 .paypalClientId(config.getPaypalClientId())
-                // Common
                 .environment(config.getEnvironment())
                 .status(config.getStatus())
+                .payAtCounterEnabled(config.getPayAtCounterEnabled())
                 .createdAt(config.getCreatedAt())
                 .updatedAt(config.getUpdatedAt())
                 .build();

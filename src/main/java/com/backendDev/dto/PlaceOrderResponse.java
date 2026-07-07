@@ -7,6 +7,7 @@ import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PlaceOrderResponse {
+
     private String orderId;
     private String orderNumber;
     private String sessionId;
@@ -22,6 +23,10 @@ public class PlaceOrderResponse {
     private BigDecimal grandTotal;
     private String paymentStatus;
     private String orderStatus;
+
+    // ── NEW ──────────────────────────────────────────────────────
+    private Boolean payAtCounter;
+
     private List<OrderItemDto> items;
     private LocalDateTime createdAt;
 
