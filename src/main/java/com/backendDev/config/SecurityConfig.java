@@ -38,42 +38,44 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
 
-                        // ── setup public endpoints ──
+                        // ── WebSocket SockJS handshake — MUST be public ──
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // ── Auth ──
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/business/setup").permitAll()
 
-                        // ── Phase 5: Public customer menu — no auth needed (QR scan) ──
+                        // ── Customer menu (QR scan) ──
                         .requestMatchers("/api/menu/**").permitAll()
 
-                        // ──  business info ──
+                        // ── Business ──
                         .requestMatchers("/api/business-information/**").authenticated()
                         .requestMatchers("/api/categories/**").authenticated()
                         .requestMatchers("/api/products/**").authenticated()
                         .requestMatchers("/api/images/**").authenticated()
 
-                        // pay at counter
+                        // ── Pay at counter public check ──
                         .requestMatchers(HttpMethod.GET, "/api/payment/pay-at-counter/status").permitAll()
 
-                        // ── Phase 4 + 5: Payment & QR (JWT protected) ──
+                        // ── Payment & QR ──
                         .requestMatchers("/api/payment/**").authenticated()
                         .requestMatchers("/api/qr/**").authenticated()
                         .requestMatchers("/api/suggestions/**").authenticated()
 
-
+                        // ── Forgot password ──
                         .requestMatchers("/api/auth/forgot-password").permitAll()
                         .requestMatchers("/api/auth/validate-reset-token").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
 
-                        //customer flow api's
+                        // ── Customer ordering flow (public — no JWT) ──
                         .requestMatchers("/api/customer/session").permitAll()
                         .requestMatchers("/api/customer/order").permitAll()
                         .requestMatchers("/api/customer/payment/initiate").permitAll()
                         .requestMatchers("/api/customer/payment/confirm").permitAll()
                         .requestMatchers("/api/customer/order/*/status").permitAll()
 
-                             //real orders api
+                        // ── Admin orders (JWT protected) ──
                         .requestMatchers("/api/admin/orders/**").authenticated()
-
 
                         .anyRequest().authenticated()
                 )

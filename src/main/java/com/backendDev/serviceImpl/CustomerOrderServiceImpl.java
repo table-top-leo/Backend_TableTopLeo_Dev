@@ -5,6 +5,7 @@ import com.backendDev.dto.*;
 import com.backendDev.model.*;
 import com.backendDev.repo.*;
 import com.backendDev.service.CustomerOrderService;
+import com.backendDev.websocket.OrderWebSocketPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
@@ -33,17 +34,20 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CustomerOrderServiceImpl implements CustomerOrderService {
 
-    private final CustomerSessionRepository   sessionRepo;
-    private final CustomerOrderRepository     orderRepo;
-    private final OrderItemRepository         itemRepo;
-    private final OrderPaymentRepository      paymentRepo;
+    private final CustomerSessionRepository     sessionRepo;
+    private final CustomerOrderRepository       orderRepo;
+    private final OrderItemRepository           itemRepo;
+    private final OrderPaymentRepository        paymentRepo;
     private final BusinessInformationRepository businessRepo;
     private final PaymentConfigurationRepository paymentConfigRepo;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper                  objectMapper;
+    private final OrderWebSocketPublisher       webSocketPublisher;
 
-    private static final BigDecimal TAX_RATE       = new BigDecimal("0.05");
-    private static final int        EXPIRY_HOURS    = 2;
-    private static final int        EST_MINUTES     = 20;
+    private static final BigDecimal TAX_RATE     = new BigDecimal("0.05");
+    private static final int        EXPIRY_HOURS = 2;
+    private static final int        EST_MINUTES  = 20;
+
+    // ── CREATE SESSION ───────────────────────────────────────────
     @Override
     @Transactional
     public ApiResponse<CreateSessionResponse> createSession(CreateSessionRequest request) {
@@ -51,7 +55,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .orElseThrow(() -> new AppException("Business not found.", HttpStatus.NOT_FOUND));
 
         CustomerSession session = CustomerSession.builder()
-                .sessionId("SES-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase())
+                .sessionId("SES-" + UUID.randomUUID().toString().replace("-","").substring(0,16).toUpperCase())
                 .adminId(business.getAdminId())
                 .businessId(business.getBusinessId())
                 .tableNumber(request.getTableNumber())
@@ -69,10 +73,11 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .sessionStatus(session.getSessionStatus())
                 .build());
     }
+
+    // ── PLACE ORDER ──────────────────────────────────────────────
     @Override
     @Transactional
     public ApiResponse<PlaceOrderResponse> placeOrder(PlaceOrderRequest request) {
-        // 1. Validate session — accept ACTIVE or ORDERED (customer may switch payment method)
         CustomerSession session = sessionRepo.findBySessionIdAndBusinessId(
                         request.getSessionId(), request.getBusinessId())
                 .orElseThrow(() -> new AppException("Session not found or expired.", HttpStatus.BAD_REQUEST));
@@ -84,7 +89,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             throw new AppException("Session has expired. Please scan QR again.", HttpStatus.BAD_REQUEST);
         }
 
-        // 2. Validate Take Away requires name & phone
         if ("TAKE_AWAY".equals(request.getOrderType())) {
             if (request.getCustomerName() == null || request.getCustomerName().isBlank())
                 throw new AppException("Name is required for Take Away.", HttpStatus.BAD_REQUEST);
@@ -92,34 +96,26 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 throw new AppException("Phone number is required for Take Away.", HttpStatus.BAD_REQUEST);
         }
 
-        // 3. Calculate totals
         BigDecimal subtotal = request.getItems().stream()
                 .map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal tax   = subtotal.multiply(TAX_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = subtotal.add(tax);
 
-        BigDecimal tax      = subtotal.multiply(TAX_RATE).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal total    = subtotal.add(tax);
-
-        // 4. Build order
-        String orderId     = "ORD-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+        String orderId     = "ORD-" + UUID.randomUUID().toString().replace("-","").substring(0,12).toUpperCase();
         String orderNumber = "TL-" + System.currentTimeMillis() % 100000;
 
         CustomerOrder order = CustomerOrder.builder()
-                .orderId(orderId)
-                .orderNumber(orderNumber)
+                .orderId(orderId).orderNumber(orderNumber)
                 .sessionId(session.getSessionId())
-                .adminId(session.getAdminId())
-                .businessId(session.getBusinessId())
+                .adminId(session.getAdminId()).businessId(session.getBusinessId())
                 .orderType(request.getOrderType())
                 .tableNumber(request.getTableNumber())
                 .customerName(request.getCustomerName())
                 .customerPhone(request.getCustomerPhone())
                 .customerEmail(request.getCustomerEmail())
                 .customerNote(request.getCustomerNote())
-                .subtotal(subtotal)
-                .taxAmount(tax)
-                .discountAmount(BigDecimal.ZERO)
-                .grandTotal(total)
+                .subtotal(subtotal).taxAmount(tax).discountAmount(BigDecimal.ZERO).grandTotal(total)
                 .paymentStatus(Boolean.TRUE.equals(request.getPayAtCounter()) ? "PAY_AT_COUNTER" : "PENDING")
                 .orderStatus("PLACED")
                 .payAtCounter(Boolean.TRUE.equals(request.getPayAtCounter()))
@@ -128,19 +124,13 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         orderRepo.save(order);
 
-        // 5. Save order items as snapshots
         List<OrderItem> savedItems = request.getItems().stream().map(i -> {
             OrderItem item = OrderItem.builder()
                     .itemId("ITM-" + UUID.randomUUID().toString().replace("-","").substring(0,10).toUpperCase())
-                    .orderId(orderId)
-                    .adminId(session.getAdminId())
-                    .businessId(session.getBusinessId())
-                    .productId(i.getProductId())
-                    .productName(i.getProductName())
-                    .productDescription(i.getProductDescription())
-                    .productImageUrl(i.getProductImageUrl())
-                    .categoryName(i.getCategoryName())
-                    .unitPrice(i.getUnitPrice())
+                    .orderId(orderId).adminId(session.getAdminId()).businessId(session.getBusinessId())
+                    .productId(i.getProductId()).productName(i.getProductName())
+                    .productDescription(i.getProductDescription()).productImageUrl(i.getProductImageUrl())
+                    .categoryName(i.getCategoryName()).unitPrice(i.getUnitPrice())
                     .quantity(i.getQuantity())
                     .lineTotal(i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
                     .specialRequest(i.getSpecialRequest())
@@ -148,7 +138,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             return itemRepo.save(item);
         }).collect(Collectors.toList());
 
-        // 6. Update session
         session.setOrderType(request.getOrderType());
         session.setCustomerName(request.getCustomerName());
         session.setCustomerPhone(request.getCustomerPhone());
@@ -181,6 +170,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .build());
     }
 
+    // ── INITIATE PAYMENT ─────────────────────────────────────────
     @Override
     @Transactional
     public ApiResponse<InitiatePaymentResponse> initiatePayment(InitiatePaymentRequest request) {
@@ -193,9 +183,28 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         String paymentId = "PAY-" + UUID.randomUUID().toString().replace("-","").substring(0,12).toUpperCase();
         String gateway   = request.getGatewayName().toLowerCase();
-        String gatewayDb = request.getGatewayName().toUpperCase(); // DB stores UPI, RAZORPAY, STRIPE, PAYPAL
+        String gatewayDb = request.getGatewayName().toUpperCase();
         String currency  = request.getCurrency() != null ? request.getCurrency() : "INR";
         BigDecimal amount = order.getGrandTotal();
+
+        // ── PAY AT COUNTER: skip config lookup — no gateway needed ──
+        if ("pay_at_counter".equals(gateway)) {
+            OrderPayment pacPayment = OrderPayment.builder()
+                    .paymentId(paymentId).orderId(order.getOrderId())
+                    .adminId(order.getAdminId()).businessId(order.getBusinessId())
+                    .gatewayName(gateway).paidAmount(amount).currency(currency)
+                    .paymentStatus("PAY_AT_COUNTER")
+                    .build();
+            paymentRepo.save(pacPayment);
+            order.setPaymentMethod(gateway);
+            orderRepo.save(order);
+            log.info("Pay at Counter payment record created: {}", paymentId);
+            return ApiResponse.success("Pay at Counter initiated", InitiatePaymentResponse.builder()
+                    .paymentId(paymentId).orderId(order.getOrderId())
+                    .gatewayName(gateway).amount(amount).currency(currency)
+                    .paymentStatus("PAY_AT_COUNTER")
+                    .build());
+        }
 
         PaymentConfiguration config = paymentConfigRepo
                 .findByBusinessIdAndPaymentType(order.getBusinessId(), gatewayDb)
@@ -205,26 +214,23 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         InitiatePaymentResponse.InitiatePaymentResponseBuilder responseBuilder =
                 InitiatePaymentResponse.builder()
                         .paymentId(paymentId).orderId(order.getOrderId())
-                        .gatewayName(gateway).amount(amount)
-                        .currency(currency).paymentStatus("PENDING");
+                        .gatewayName(gateway).amount(amount).currency(currency).paymentStatus("PENDING");
 
         OrderPayment payment = OrderPayment.builder()
                 .paymentId(paymentId).orderId(order.getOrderId())
                 .adminId(order.getAdminId()).businessId(order.getBusinessId())
-                .gatewayName(gateway).paidAmount(amount).currency(currency)
-                .paymentStatus("PENDING").build();
+                .gatewayName(gateway).paidAmount(amount).currency(currency).paymentStatus("PENDING")
+                .build();
 
-        // ── UPI: build the deep-link string ──────────────────────
         if ("upi".equals(gateway)) {
             String upiId   = config.getUpiId();
             String merchant = config.getMerchantName() != null ? config.getMerchantName() : order.getBusinessId();
             String upiStr  = String.format("upi://pay?pa=%s&pn=%s&am=%.2f&cu=INR&tn=Order%%23%s",
-                    upiId, merchant.replace(" ", "+"), amount, order.getOrderNumber());
+                    upiId, merchant.replace(" ","+"), amount, order.getOrderNumber());
             responseBuilder.upiString(upiStr);
             payment.setPaymentReference(upiId);
         }
 
-        // ── RAZORPAY ─────────────────────────────────────────────
         if ("razorpay".equals(gateway)) {
             try {
                 RazorpayClient razorpay = new RazorpayClient(config.getPublishableKey(), config.getSecretKey());
@@ -237,44 +243,29 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 String rzpOrderId = rzpOrder.get("id");
                 responseBuilder.razorpayOrderId(rzpOrderId).razorpayKeyId(config.getPublishableKey());
                 payment.setPaymentReference(rzpOrderId);
-                log.info("Razorpay order created: {} for orderId: {}", rzpOrderId, order.getOrderId());
             } catch (Exception e) {
-                log.error("Razorpay order creation failed: {}", e.getMessage());
                 throw new AppException("Failed to initiate Razorpay payment: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         }
 
-        // ── STRIPE ───────────────────────────────────────────────
         if ("stripe".equals(gateway)) {
             try {
                 Stripe.apiKey = config.getSecretKey();
-                long amountInSmallestUnit = "INR".equals(currency)
-                        ? amount.multiply(BigDecimal.valueOf(100)).longValue()
-                        : amount.multiply(BigDecimal.valueOf(100)).longValue();
                 PaymentIntent intent = PaymentIntent.create(
                         PaymentIntentCreateParams.builder()
-                                .setAmount(amountInSmallestUnit)
+                                .setAmount(amount.multiply(BigDecimal.valueOf(100)).longValue())
                                 .setCurrency(currency.toLowerCase())
                                 .putMetadata("order_id", order.getOrderId())
-                                .putMetadata("order_number", order.getOrderNumber())
-                                .setAutomaticPaymentMethods(
-                                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                                .setEnabled(true).build())
+                                .setAutomaticPaymentMethods(PaymentIntentCreateParams.AutomaticPaymentMethods.builder().setEnabled(true).build())
                                 .build());
-                responseBuilder.stripeClientSecret(intent.getClientSecret())
-                        .stripePublishableKey(config.getPublishableKey());
+                responseBuilder.stripeClientSecret(intent.getClientSecret()).stripePublishableKey(config.getPublishableKey());
                 payment.setTransactionId(intent.getId());
-                log.info("Stripe PaymentIntent created: {} for orderId: {}", intent.getId(), order.getOrderId());
             } catch (Exception e) {
-                log.error("Stripe initiation failed: {}", e.getMessage());
                 throw new AppException("Failed to initiate Stripe payment: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
             }
         }
 
-        // ── PAYPAL ───────────────────────────────────────────────
         if ("paypal".equals(gateway)) {
-            // PayPal order is created on frontend using JS SDK + client_id
-            // Backend only provides the client_id here
             responseBuilder.paypalClientId(config.getPaypalClientId())
                     .paypalOrderId("PAYPAL-PENDING-" + System.currentTimeMillis());
         }
@@ -285,6 +276,8 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         return ApiResponse.success("Payment initiated", responseBuilder.build());
     }
+
+    // ── CONFIRM PAYMENT ──────────────────────────────────────────
     @Override
     @Transactional
     public ApiResponse<ConfirmPaymentResponse> confirmPayment(ConfirmPaymentRequest request) {
@@ -299,7 +292,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         String gateway = request.getGatewayName().toLowerCase();
 
-        // ── UPI: mark as paid directly (payment happened via UPI app) ──
         if ("upi".equals(gateway)) {
             payment.setTransactionId(request.getTransactionId());
             payment.setPaymentReference(request.getPaymentReference());
@@ -307,63 +299,62 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             payment.setCompletedAt(LocalDateTime.now());
         }
 
-        // ── RAZORPAY: verify signature ────────────────────────────
         if ("razorpay".equals(gateway)) {
             try {
                 PaymentConfiguration config = paymentConfigRepo
                         .findByBusinessIdAndPaymentType(order.getBusinessId(), "RAZORPAY")
                         .orElseThrow(() -> new AppException("Razorpay config not found.", HttpStatus.BAD_REQUEST));
-
                 String payload = request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId();
-                String generatedSignature = hmacSha256(payload, config.getSecretKey());
-
-                if (!generatedSignature.equals(request.getRazorpaySignature())) {
+                String sig = hmacSha256(payload, config.getSecretKey());
+                if (!sig.equals(request.getRazorpaySignature())) {
                     payment.setPaymentStatus("FAILED");
                     payment.setFailureReason("Signature verification failed.");
                     paymentRepo.save(payment);
                     throw new AppException("Payment verification failed. Invalid signature.", HttpStatus.BAD_REQUEST);
                 }
-
                 payment.setTransactionId(request.getRazorpayPaymentId());
                 payment.setPaymentReference(request.getRazorpayOrderId());
                 payment.setPaymentStatus("SUCCESS");
                 payment.setCompletedAt(LocalDateTime.now());
-                log.info("Razorpay payment verified: {}", request.getRazorpayPaymentId());
-            } catch (AppException ae) {
-                throw ae;
-            } catch (Exception e) {
-                throw new AppException("Razorpay verification error: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+            } catch (AppException ae) { throw ae; }
+            catch (Exception e) { throw new AppException("Razorpay verification error: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR); }
         }
 
-        // ── STRIPE: client confirms via frontend, we trust client secret match ──
         if ("stripe".equals(gateway)) {
             payment.setTransactionId(request.getStripePaymentIntentId());
             payment.setPaymentReference(request.getStripePaymentIntentId());
             payment.setPaymentStatus("SUCCESS");
             payment.setCompletedAt(LocalDateTime.now());
-            log.info("Stripe payment confirmed: {}", request.getStripePaymentIntentId());
         }
 
-        // ── PAYPAL: capture ID from frontend ─────────────────────
         if ("paypal".equals(gateway)) {
             payment.setTransactionId(request.getPaypalCaptureId());
             payment.setPaymentReference(request.getPaypalOrderId());
             payment.setPaymentStatus("SUCCESS");
             payment.setCompletedAt(LocalDateTime.now());
-            log.info("PayPal payment confirmed: captureId={}", request.getPaypalCaptureId());
         }
 
-        // Save gateway raw response for audit
+        if ("pay_at_counter".equals(gateway)) {
+            payment.setPaymentStatus("PAY_AT_COUNTER");
+            payment.setCompletedAt(LocalDateTime.now());
+        }
+
         payment.setGatewayResponse(request.getGatewayResponse());
         paymentRepo.save(payment);
 
-        // Update order status
-        order.setPaymentStatus("PAID");
+        // Pay at counter stays as PAY_AT_COUNTER — customer pays later at cashier
+        // All other gateways = already paid online → PAID
+        if ("pay_at_counter".equals(gateway)) {
+            order.setPaymentStatus("PAY_AT_COUNTER");
+        } else {
+            order.setPaymentStatus("PAID");
+        }
         order.setOrderStatus("ACCEPTED");
         orderRepo.save(order);
 
-        log.info("Order {} confirmed and PAID via {}", order.getOrderId(), gateway);
+        // ── PUBLISH WebSocket NEW_ORDER event to admin dashboard ──
+        webSocketPublisher.publishNewOrder(order);
+        log.info("Order {} confirmed PAID — WebSocket event published to admin", order.getOrderId());
 
         return ApiResponse.success("Payment confirmed. Order accepted!", ConfirmPaymentResponse.builder()
                 .paymentId(payment.getPaymentId())
@@ -381,6 +372,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .build());
     }
 
+    // ── GET ORDER STATUS ─────────────────────────────────────────
     @Override
     public ApiResponse<OrderStatusResponse> getOrderStatus(String orderId) {
         CustomerOrder order = orderRepo.findByOrderId(orderId)
@@ -399,6 +391,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .build());
     }
 
+    // ── HELPER ───────────────────────────────────────────────────
     private String hmacSha256(String data, String key) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

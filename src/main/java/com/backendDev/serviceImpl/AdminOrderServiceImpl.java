@@ -9,6 +9,7 @@ import com.backendDev.model.OrderItem;
 import com.backendDev.repo.CustomerOrderRepository;
 import com.backendDev.repo.OrderItemRepository;
 import com.backendDev.service.AdminOrderService;
+import com.backendDev.websocket.OrderWebSocketPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,19 +26,17 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     private final CustomerOrderRepository orderRepo;
     private final OrderItemRepository     itemRepo;
+    private final OrderWebSocketPublisher webSocketPublisher;
 
     @Override
     public ApiResponse<List<AdminOrderResponse>> getAllOrdersForAdmin() {
         String adminId = UserContext.getAdminId();
         log.info("Fetching all orders for adminId: {}", adminId);
-
         List<CustomerOrder> orders = orderRepo.findAllByAdminIdOrderByCreatedAtDesc(adminId);
         log.info("Found {} orders for adminId: {}", orders.size(), adminId);
-
         List<AdminOrderResponse> responses = orders.stream()
                 .map(order -> toResponse(order, itemRepo.findAllByOrderId(order.getOrderId())))
                 .collect(Collectors.toList());
-
         return ApiResponse.success("Orders fetched successfully", responses);
     }
 
@@ -45,14 +44,11 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     public ApiResponse<AdminOrderResponse> getOrderDetailById(String orderId) {
         String adminId = UserContext.getAdminId();
         log.info("Fetching order detail for orderId: {}, adminId: {}", orderId, adminId);
-
         CustomerOrder order = orderRepo.findByOrderId(orderId)
                 .orElseThrow(() -> new AppException("Order not found.", HttpStatus.NOT_FOUND));
-
         if (!order.getAdminId().equals(adminId)) {
             throw new AppException("Access denied. This order does not belong to your account.", HttpStatus.FORBIDDEN);
         }
-
         List<OrderItem> items = itemRepo.findAllByOrderId(orderId);
         return ApiResponse.success("Order detail fetched successfully", toResponse(order, items));
     }
@@ -75,9 +71,13 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             throw new AppException("Invalid status: " + newStatus, HttpStatus.BAD_REQUEST);
         }
 
+        String previousStatus = order.getOrderStatus();
         order.setOrderStatus(newStatus.toUpperCase());
         orderRepo.save(order);
         log.info("Order {} status updated to {}", orderId, newStatus);
+
+        // ── Publish WebSocket event → customer tracking updates instantly ──
+        webSocketPublisher.publishStatusUpdate(order, previousStatus);
 
         List<OrderItem> items = itemRepo.findAllByOrderId(orderId);
         return ApiResponse.success("Order status updated successfully", toResponse(order, items));
