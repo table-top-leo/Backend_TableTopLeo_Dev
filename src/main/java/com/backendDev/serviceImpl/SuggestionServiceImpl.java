@@ -204,6 +204,8 @@ public class SuggestionServiceImpl implements SuggestionService {
                 .categoryName(s.getCategoryName())
                 .categoryEmoji(s.getCategoryEmoji())
                 .displayOrder(s.getDisplayOrder())
+                .categoryImage(s.getCategoryImage())
+                .categoryImageType(s.getCategoryImageType())
                 .build();
     }
 
@@ -214,6 +216,8 @@ public class SuggestionServiceImpl implements SuggestionService {
                 .categoryName(s.getCategoryName())
                 .itemName(s.getItemName())
                 .displayOrder(s.getDisplayOrder())
+                .itemImage(s.getItemImage())
+                .itemImageType(s.getItemImageType())
                 .build();
     }
 }

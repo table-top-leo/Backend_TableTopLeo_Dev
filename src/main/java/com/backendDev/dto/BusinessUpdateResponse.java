@@ -1,15 +1,10 @@
 package com.backendDev.dto;
 
 import lombok.*;
-
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class BusinessUpdateResponse {
 
     private String businessId;
@@ -27,6 +22,7 @@ public class BusinessUpdateResponse {
     private String city;
     private String state;
     private String country;
+    private String currencyCode;
     private String postalCode;
     private LocalTime openingTime;
     private LocalTime closingTime;

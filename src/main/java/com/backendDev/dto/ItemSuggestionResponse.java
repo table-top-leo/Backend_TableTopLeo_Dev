@@ -9,4 +9,6 @@ public class ItemSuggestionResponse {
     private String categoryName;
     private String itemName;
     private Integer displayOrder;
+    private String itemImage;
+    private String itemImageType;
 }

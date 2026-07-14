@@ -9,4 +9,6 @@ public class CategorySuggestionResponse {
     private String categoryName;
     private String categoryEmoji;
     private Integer displayOrder;
+    private String categoryImage;
+    private String categoryImageType;
 }

@@ -23,4 +23,10 @@ public class CategorySuggestion {
 
     @Column(name = "display_order")
     private Integer displayOrder;
+
+    @Column(name = "category_image", length = 500)
+    private String categoryImage;
+
+    @Column(name = "category_image_type", length = 50)
+    private String categoryImageType;
 }

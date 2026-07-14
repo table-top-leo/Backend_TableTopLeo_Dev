@@ -3,11 +3,7 @@ package com.backendDev.dto;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class BusinessUpdateRequest {
 
     @NotBlank(message = "Business name is required")
@@ -38,6 +34,9 @@ public class BusinessUpdateRequest {
 
     @NotBlank(message = "Country is required")
     private String country;
+
+    // ── NEW ──
+    private String currencyCode;
 
     @NotBlank(message = "Postal code is required")
     private String postalCode;

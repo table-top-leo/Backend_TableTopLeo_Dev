@@ -27,6 +27,7 @@ public class BusinessInformationResponse {
     private String city;
     private String state;
     private String country;
+    private String currencyCode;
     private String postalCode;
     private LocalTime openingTime;
     private LocalTime closingTime;

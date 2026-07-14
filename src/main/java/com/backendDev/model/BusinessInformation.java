@@ -8,11 +8,7 @@ import java.time.LocalTime;
 
 @Entity
 @Table(name = "tabletop_leo_business_information")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class BusinessInformation {
 
     @Id
@@ -64,6 +60,11 @@ public class BusinessInformation {
     @Column(name = "country", nullable = false, length = 100)
     private String country;
 
+    // ── NEW: Currency code stored as ISO code e.g. INR, DKK, USD ──
+    @Column(name = "currency_code", length = 10)
+    @Builder.Default
+    private String currencyCode = "INR";
+
     @Column(name = "postal_code", nullable = false, length = 20)
     private String postalCode;
 
@@ -97,6 +98,7 @@ public class BusinessInformation {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (setupCompleted == null) setupCompleted = false;
+        if (currencyCode == null) currencyCode = "INR";
     }
 
     @PreUpdate

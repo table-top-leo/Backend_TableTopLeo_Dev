@@ -170,6 +170,12 @@ public class AuthServiceImpl implements AuthService {
                 logoUrl    = businessOpt.get().getLogoUrl();
             }
 
+            String currencyCode = "INR";
+            if (businessOpt.isPresent()) {
+                String bc = businessOpt.get().getCurrencyCode();
+                if (bc != null && !bc.isBlank()) currencyCode = bc;
+            }
+
             return LoginApiResponse.builder()
                     .success(true)
                     .message("Login successful")
@@ -179,6 +185,7 @@ public class AuthServiceImpl implements AuthService {
                     .email(user.getEmail())
                     .businessId(businessId)
                     .logoUrl(logoUrl)
+                    .currencyCode(currencyCode)
                     .build();
 
         } catch (InvalidCredentialsException e) {

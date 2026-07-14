@@ -23,4 +23,10 @@ public class ItemSuggestion {
 
     @Column(name = "display_order")
     private Integer displayOrder;
+
+    @Column(name = "item_image", length = 500)
+    private String itemImage;
+
+    @Column(name = "item_image_type", length = 50)
+    private String itemImageType;
 }

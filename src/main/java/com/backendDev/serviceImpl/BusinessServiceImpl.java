@@ -66,6 +66,7 @@ public class BusinessServiceImpl implements BusinessService {
                 .city(request.getCity())
                 .state(request.getState())
                 .country(request.getCountry())
+                .currencyCode(request.getCurrencyCode() != null && !request.getCurrencyCode().isBlank() ? request.getCurrencyCode() : "INR")
                 .postalCode(request.getPostalCode())
                 .openingTime(openingTime)
                 .closingTime(closingTime)
@@ -133,6 +134,9 @@ public class BusinessServiceImpl implements BusinessService {
         business.setCity(request.getCity());
         business.setState(request.getState());
         business.setCountry(request.getCountry());
+        if (request.getCurrencyCode() != null && !request.getCurrencyCode().isBlank()) {
+            business.setCurrencyCode(request.getCurrencyCode());
+        }
         business.setPostalCode(request.getPostalCode());
         business.setOpeningTime(openingTime);
         business.setClosingTime(closingTime);
@@ -190,6 +194,7 @@ public class BusinessServiceImpl implements BusinessService {
                 .city(business.getCity())
                 .state(business.getState())
                 .country(business.getCountry())
+                .currencyCode(business.getCurrencyCode())
                 .postalCode(business.getPostalCode())
                 .openingTime(business.getOpeningTime())
                 .closingTime(business.getClosingTime())
