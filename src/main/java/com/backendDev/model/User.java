@@ -2,16 +2,11 @@ package com.backendDev.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tabletop_leo_users")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
 
     @Id
@@ -41,6 +36,15 @@ public class User {
     @Builder.Default
     private String accountStatus = "ACTIVE";
 
+    // ── Language preference ──────────────────────────────────
+    @Column(name = "language_code", length = 10)
+    @Builder.Default
+    private String languageCode = "en";
+
+    @Column(name = "language_name", length = 100)
+    @Builder.Default
+    private String languageName = "English";
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -53,6 +57,8 @@ public class User {
         updatedAt = LocalDateTime.now();
         if (emailVerified == null) emailVerified = false;
         if (accountStatus == null) accountStatus = "ACTIVE";
+        if (languageCode == null)  languageCode  = "en";
+        if (languageName == null)  languageName  = "English";
     }
 
     @PreUpdate
