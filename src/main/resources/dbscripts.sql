@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS tabletop_leo_orders (
     table_number      VARCHAR(20),
     customer_name     VARCHAR(150),
     customer_phone    VARCHAR(20),
-    customer_email    VARCHAR(255),
     customer_note     TEXT,
     subtotal          DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
     tax_amount        DECIMAL(10,2)   NOT NULL DEFAULT 0.00,
@@ -124,3 +123,50 @@ FROM information_schema.columns
 WHERE table_name = 'tabletop_leo_payment_configurations'
   AND column_name = 'pay_at_counter_enabled';
 
+
+-------New alter columns (Invoice Email feature) ***********************************************
+-- customer_email is now the single source of truth on tabletop_leo_customer_sessions.
+-- Drop the duplicate column from tabletop_leo_orders (safe / idempotent — run once).
+ALTER TABLE tabletop_leo_orders
+    DROP COLUMN IF EXISTS customer_email;
+
+-- Sanity check: confirm the column is gone from orders and still present on sessions.
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'tabletop_leo_orders' AND column_name = 'customer_email';
+
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'tabletop_leo_customer_sessions' AND column_name = 'customer_email';
+
+-------New tables (Reviews feature — Task 2) *********************************************
+-- These are auto-created by Hibernate (spring.jpa.hibernate.ddl-auto=update) on startup,
+-- same as tabletop_leo_business_information. Listed here for reference only.
+
+-- 5. Customer -> Business/Merchant reviews (no order link; write-once per business+phone)
+CREATE TABLE IF NOT EXISTS tabletop_leo_business_reviews (
+    id                BIGSERIAL       PRIMARY KEY,
+    review_id         VARCHAR(50)     NOT NULL UNIQUE,
+    business_id       VARCHAR(50)     NOT NULL,
+    admin_id          VARCHAR(50)     NOT NULL,
+    customer_name     VARCHAR(150),
+    customer_phone    VARCHAR(20)     NOT NULL,
+    rating            INTEGER         NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    review_text       TEXT,
+    created_at        TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP       NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_business_review_phone UNIQUE (business_id, customer_phone)
+);
+CREATE INDEX IF NOT EXISTS idx_brev_business_id ON tabletop_leo_business_reviews(business_id);
+CREATE INDEX IF NOT EXISTS idx_brev_admin_id    ON tabletop_leo_business_reviews(admin_id);
+
+-- 6. Merchant/Admin -> Application reviews (write-once per admin)
+CREATE TABLE IF NOT EXISTS tabletop_leo_app_reviews (
+    id                BIGSERIAL       PRIMARY KEY,
+    review_id         VARCHAR(50)     NOT NULL UNIQUE,
+    admin_id          VARCHAR(50)     NOT NULL UNIQUE,
+    business_id       VARCHAR(50),
+    rating            INTEGER         NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    review_text       TEXT,
+    created_at        TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_arev_admin_id ON tabletop_leo_app_reviews(admin_id);

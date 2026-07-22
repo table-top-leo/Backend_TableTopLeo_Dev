@@ -5,8 +5,10 @@ import com.backendDev.context.UserContext;
 import com.backendDev.dto.AdminOrderResponse;
 import com.backendDev.dto.ApiResponse;
 import com.backendDev.model.CustomerOrder;
+import com.backendDev.model.CustomerSession;
 import com.backendDev.model.OrderItem;
 import com.backendDev.repo.CustomerOrderRepository;
+import com.backendDev.repo.CustomerSessionRepository;
 import com.backendDev.repo.OrderItemRepository;
 import com.backendDev.service.AdminOrderService;
 import com.backendDev.websocket.OrderWebSocketPublisher;
@@ -24,9 +26,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AdminOrderServiceImpl implements AdminOrderService {
 
-    private final CustomerOrderRepository orderRepo;
-    private final OrderItemRepository     itemRepo;
-    private final OrderWebSocketPublisher webSocketPublisher;
+    private final CustomerOrderRepository   orderRepo;
+    private final OrderItemRepository       itemRepo;
+    private final CustomerSessionRepository sessionRepo;
+    private final OrderWebSocketPublisher   webSocketPublisher;
 
     @Override
     public ApiResponse<List<AdminOrderResponse>> getAllOrdersForAdmin() {
@@ -109,7 +112,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                 .tableNumber(order.getTableNumber())
                 .customerName(order.getCustomerName())
                 .customerPhone(order.getCustomerPhone())
-                .customerEmail(order.getCustomerEmail())
+                .customerEmail(resolveCustomerEmail(order.getSessionId()))
                 .customerNote(order.getCustomerNote())
                 .subtotal(order.getSubtotal())
                 .taxAmount(order.getTaxAmount())
@@ -124,5 +127,14 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                 .updatedAt(order.getUpdatedAt())
                 .items(itemResponses)
                 .build();
+    }
+
+    // customer_email now lives ONLY on tabletop_leo_customer_sessions.
+    // Resolve it from the session tied to this order (never fails the response if missing).
+    private String resolveCustomerEmail(String sessionId) {
+        if (sessionId == null) return null;
+        return sessionRepo.findBySessionId(sessionId)
+                .map(CustomerSession::getCustomerEmail)
+                .orElse(null);
     }
 }

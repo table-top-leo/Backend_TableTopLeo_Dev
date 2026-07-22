@@ -74,8 +74,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/customer/payment/confirm").permitAll()
                         .requestMatchers("/api/customer/order/*/status").permitAll()
 
+                        // ── Invoice (Task 1) — public, customer-facing, no JWT ──
+                        .requestMatchers(HttpMethod.GET, "/api/customer/order/*/invoice").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/customer/order/*/invoice/send-email").permitAll()
+
+                        // ── Customer → Business reviews (Task 2) — public, no JWT ──
+                        .requestMatchers(HttpMethod.POST, "/api/reviews/business").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/business/*").permitAll()
+
                         // ── Admin orders (JWT protected) ──
                         .requestMatchers("/api/admin/orders/**").authenticated()
+
+                        // ── Admin → Application reviews (JWT protected) ──
+                        .requestMatchers("/api/admin/reviews/**").authenticated()
 
                         .anyRequest().authenticated()
                 )

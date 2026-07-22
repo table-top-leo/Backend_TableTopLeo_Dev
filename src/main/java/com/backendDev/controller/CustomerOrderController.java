@@ -22,6 +22,8 @@ public class CustomerOrderController {
     public static final String INITIATE_PAYMENT   = "/payment/initiate";
     public static final String CONFIRM_PAYMENT    = "/payment/confirm";
     public static final String GET_ORDER_STATUS   = "/order/{orderId}/status";
+    public static final String GET_INVOICE        = "/order/{orderId}/invoice";
+    public static final String SEND_INVOICE_EMAIL = "/order/{orderId}/invoice/send-email";
 
     private final CustomerOrderService customerOrderService;
 
@@ -67,6 +69,27 @@ public class CustomerOrderController {
         LOG.info("Fetching order status for orderId: {}", orderId);
         ApiResponse<OrderStatusResponse> response = customerOrderService.getOrderStatus(orderId);
         LOG.info("Order status: {}", response.getData() != null ? response.getData().getOrderStatus() : "null");
+        return ResponseEntity.ok(response);
+    }
+
+    // ── Invoice details, assembled from existing order/item/business/session tables ──
+    @GetMapping(value = GET_INVOICE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<InvoiceDetailsResponse>> getInvoice(
+            @PathVariable String orderId) {
+        LOG.info("Fetching invoice details for orderId: {}", orderId);
+        ApiResponse<InvoiceDetailsResponse> response = customerOrderService.getInvoiceDetails(orderId);
+        return ResponseEntity.ok(response);
+    }
+
+    // ── Stores the email on the session, sends invoice only if payment completed ──
+    @PostMapping(value = SEND_INVOICE_EMAIL, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<SendInvoiceEmailResponse>> sendInvoiceEmail(
+            @PathVariable String orderId,
+            @Valid @RequestBody SendInvoiceEmailRequest request) {
+        LOG.info("Request to send invoice email for orderId: {}", orderId);
+        ApiResponse<SendInvoiceEmailResponse> response = customerOrderService.sendInvoiceEmail(orderId, request);
+        LOG.info("Invoice email result for orderId {}: sent={}", orderId,
+                response.getData() != null && response.getData().isEmailSent());
         return ResponseEntity.ok(response);
     }
 }

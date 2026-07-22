@@ -41,9 +41,6 @@ public class CustomerOrder {
     @Column(name = "customer_phone", length = 20)
     private String customerPhone;
 
-    @Column(name = "customer_email", length = 255)
-    private String customerEmail;
-
     @Column(name = "customer_note", columnDefinition = "TEXT")
     private String customerNote;
 

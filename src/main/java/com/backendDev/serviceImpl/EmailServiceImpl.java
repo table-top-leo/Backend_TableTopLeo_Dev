@@ -1,5 +1,6 @@
 package com.backendDev.serviceImpl;
 
+import com.backendDev.dto.InvoiceDetailsResponse;
 import com.backendDev.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -9,6 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
@@ -51,6 +55,23 @@ public class EmailServiceImpl implements EmailService {
         } catch (MessagingException ex) {
             log.error("Failed to send password reset email to {}: {}", toEmail, ex.getMessage());
             throw new RuntimeException("Failed to send password reset email. Please try again.");
+        }
+    }
+
+    @Override
+    public void sendInvoiceEmail(String toEmail, InvoiceDetailsResponse invoice) {
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject("TableTopLeo - Invoice #" + invoice.getInvoiceNumber());
+            helper.setText(buildInvoiceEmailBody(invoice), true);
+            mailSender.send(mimeMessage);
+            log.info("Invoice email sent successfully to: {} for order: {}", toEmail, invoice.getOrderId());
+        } catch (MessagingException ex) {
+            log.error("Failed to send invoice email to {}: {}", toEmail, ex.getMessage());
+            throw new RuntimeException("Failed to send invoice email. Please try again.");
         }
     }
 
@@ -139,5 +160,110 @@ public class EmailServiceImpl implements EmailService {
 
                 + "</table></td></tr></table>"
                 + "</body></html>";
+    }
+
+    private String buildInvoiceEmailBody(InvoiceDetailsResponse invoice) {
+        String formattedDate = invoice.getCreatedAt() != null
+                ? invoice.getCreatedAt().format(DateTimeFormatter.ofPattern("d/M/yyyy hh:mm a"))
+                : "";
+
+        StringBuilder itemRows = new StringBuilder();
+        if (invoice.getItems() != null) {
+            for (InvoiceDetailsResponse.InvoiceItemDto item : invoice.getItems()) {
+                itemRows.append("<tr>")
+                        .append("<td style='padding:10px 8px;border-bottom:1px solid #f0f0f0;font-size:13.5px;color:#1f2328;'>")
+                        .append(item.getProductName()).append("</td>")
+                        .append("<td style='padding:10px 8px;border-bottom:1px solid #f0f0f0;font-size:13.5px;color:#1f2328;text-align:center;'>")
+                        .append(item.getQuantity()).append("</td>")
+                        .append("<td style='padding:10px 8px;border-bottom:1px solid #f0f0f0;font-size:13.5px;color:#1f2328;text-align:right;'>")
+                        .append(formatAmount(item.getUnitPrice())).append("</td>")
+                        .append("<td style='padding:10px 8px;border-bottom:1px solid #f0f0f0;font-size:13.5px;color:#1f2328;text-align:right;font-weight:600;'>")
+                        .append(formatAmount(item.getLineTotal())).append("</td>")
+                        .append("</tr>");
+            }
+        }
+
+        return "<!DOCTYPE html>"
+                + "<html lang='en'>"
+                + "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0'><title>Invoice</title></head>"
+                + "<body style='margin:0;padding:0;background:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Helvetica,Arial,sans-serif;'>"
+                + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'>"
+                + "<tr><td align='center'>"
+                + "<table width='560' cellpadding='0' cellspacing='0' style='max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);'>"
+
+                + "<tr><td style='padding:28px 36px;border-bottom:2px solid #111827;'>"
+                + "<table width='100%'><tr>"
+                + "<td style='font-size:20px;font-weight:800;color:#111827;'>" + safe(invoice.getBusinessName()) + "</td>"
+                + "<td style='text-align:right;'>"
+                + "<div style='font-size:11px;letter-spacing:1px;color:#9ca3af;'>TAX INVOICE</div>"
+                + "<div style='font-size:18px;font-weight:800;color:#111827;'>" + safe(invoice.getInvoiceNumber()) + "</div>"
+                + "<div style='font-size:12px;color:#6b7280;'>" + formattedDate + "</div>"
+                + "</td></tr></table>"
+                + "</td></tr>"
+
+                + "<tr><td style='padding:24px 36px;border-bottom:1px solid #f0f0f0;'>"
+                + "<table width='100%'><tr>"
+                + "<td style='vertical-align:top;'>"
+                + "<div style='font-size:11px;letter-spacing:1px;color:#9ca3af;margin-bottom:4px;'>BILL TO</div>"
+                + "<div style='font-size:14px;font-weight:700;color:#111827;'>" + safe(invoice.getCustomerName()) + "</div>"
+                + "<div style='font-size:13px;color:#6b7280;'>" + safe(invoice.getCustomerPhone()) + "</div>"
+                + "<div style='font-size:13px;color:#6b7280;'>" + safe(invoice.getOrderType())
+                + (invoice.getTableNumber() != null && !invoice.getTableNumber().isBlank() ? " • Table " + invoice.getTableNumber() : "") + "</div>"
+                + "</td>"
+                + "<td style='vertical-align:top;text-align:right;'>"
+                + "<div style='font-size:11px;letter-spacing:1px;color:#9ca3af;margin-bottom:4px;'>ORDER REFERENCE</div>"
+                + "<div style='font-size:13px;color:#111827;'>" + safe(invoice.getOrderId()) + "</div>"
+                + "<div style='font-size:13px;color:#6b7280;'>" + safe(invoice.getPaymentMethod()) + "</div>"
+                + "</td></tr></table>"
+                + "</td></tr>"
+
+                + "<tr><td style='padding:20px 36px 0 36px;'>"
+                + "<table width='100%' cellpadding='0' cellspacing='0'>"
+                + "<tr>"
+                + "<th style='text-align:left;padding:8px;font-size:11px;letter-spacing:0.5px;color:#9ca3af;border-bottom:2px solid #111827;'>DESCRIPTION</th>"
+                + "<th style='text-align:center;padding:8px;font-size:11px;letter-spacing:0.5px;color:#9ca3af;border-bottom:2px solid #111827;'>QTY</th>"
+                + "<th style='text-align:right;padding:8px;font-size:11px;letter-spacing:0.5px;color:#9ca3af;border-bottom:2px solid #111827;'>RATE</th>"
+                + "<th style='text-align:right;padding:8px;font-size:11px;letter-spacing:0.5px;color:#9ca3af;border-bottom:2px solid #111827;'>AMOUNT</th>"
+                + "</tr>"
+                + itemRows
+                + "</table>"
+                + "</td></tr>"
+
+                + "<tr><td style='padding:16px 36px 28px 36px;'>"
+                + "<table width='100%' cellpadding='0' cellspacing='0'>"
+                + "<tr><td style='padding:6px 0;font-size:13.5px;color:#6b7280;'>Subtotal</td>"
+                + "<td style='padding:6px 0;font-size:13.5px;color:#1f2328;text-align:right;'>" + formatAmount(invoice.getSubtotal()) + "</td></tr>"
+                + "<tr><td style='padding:6px 0 14px 0;font-size:13.5px;color:#6b7280;border-bottom:1px solid #111827;'>GST</td>"
+                + "<td style='padding:6px 0 14px 0;font-size:13.5px;color:#1f2328;text-align:right;border-bottom:1px solid #111827;'>" + formatAmount(invoice.getGstAmount()) + "</td></tr>"
+                + "<tr><td style='padding:14px 0 0 0;font-size:16px;font-weight:800;color:#111827;'>TOTAL</td>"
+                + "<td style='padding:14px 0 0 0;font-size:16px;font-weight:800;color:#111827;text-align:right;'>" + formatAmount(invoice.getGrandTotal()) + "</td></tr>"
+                + "</table>"
+                + "</td></tr>"
+
+                + "<tr><td style='padding:0 36px 28px 36px;'>"
+                + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f9fafb;border:1px solid #f0f0f0;border-radius:8px;'>"
+                + "<tr><td style='padding:14px 20px;'>"
+                + "<span style='font-size:11px;letter-spacing:0.5px;color:#9ca3af;'>PAYMENT STATUS</span><br>"
+                + "<span style='font-size:14px;font-weight:700;color:#15803d;'>" + safe(invoice.getPaymentStatus()) + "</span>"
+                + "</td><td style='padding:14px 20px;text-align:right;'>"
+                + "<span style='font-size:11px;letter-spacing:0.5px;color:#9ca3af;'>METHOD</span><br>"
+                + "<span style='font-size:14px;font-weight:700;color:#111827;'>" + safe(invoice.getPaymentMethod()) + "</span>"
+                + "</td></tr></table>"
+                + "</td></tr>"
+
+                + "<tr><td style='background:#111827;padding:16px 36px;text-align:center;'>"
+                + "<span style='font-size:12.5px;color:#e5e7eb;'>Thank you for your visit! · Powered by TableTop Leo</span>"
+                + "</td></tr>"
+
+                + "</table></td></tr></table>"
+                + "</body></html>";
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return "₹" + (amount != null ? amount.setScale(2, java.math.RoundingMode.HALF_UP) : "0.00");
+    }
+
+    private String safe(String value) {
+        return value != null ? value : "";
     }
 }

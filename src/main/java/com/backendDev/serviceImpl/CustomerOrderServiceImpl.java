@@ -5,6 +5,7 @@ import com.backendDev.dto.*;
 import com.backendDev.model.*;
 import com.backendDev.repo.*;
 import com.backendDev.service.CustomerOrderService;
+import com.backendDev.service.EmailService;
 import com.backendDev.websocket.OrderWebSocketPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.razorpay.Order;
@@ -42,6 +43,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     private final PaymentConfigurationRepository paymentConfigRepo;
     private final ObjectMapper                  objectMapper;
     private final OrderWebSocketPublisher       webSocketPublisher;
+    private final EmailService                  emailService;
 
     private static final BigDecimal TAX_RATE     = new BigDecimal("0.05");
     private static final int        EXPIRY_HOURS = 2;
@@ -113,7 +115,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .tableNumber(request.getTableNumber())
                 .customerName(request.getCustomerName())
                 .customerPhone(request.getCustomerPhone())
-                .customerEmail(request.getCustomerEmail())
                 .customerNote(request.getCustomerNote())
                 .subtotal(subtotal).taxAmount(tax).discountAmount(BigDecimal.ZERO).grandTotal(total)
                 .paymentStatus(Boolean.TRUE.equals(request.getPayAtCounter()) ? "PAY_AT_COUNTER" : "PENDING")
@@ -389,6 +390,107 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build());
+    }
+
+    // ── GET INVOICE DETAILS (Task 1) ───────────────────────────────
+    // Pulls everything from tables that already exist — no invoice table.
+    @Override
+    public ApiResponse<InvoiceDetailsResponse> getInvoiceDetails(String orderId) {
+        InvoiceDetailsResponse invoice = assembleInvoice(orderId);
+        return ApiResponse.success("Invoice details fetched", invoice);
+    }
+
+    // ── SEND INVOICE EMAIL (Task 1) ─────────────────────────────────
+    // Stores ONLY the email on the customer session, then sends the invoice
+    // ONLY if the email is present and the order's payment has completed (PAID).
+    @Override
+    @Transactional
+    public ApiResponse<SendInvoiceEmailResponse> sendInvoiceEmail(String orderId, SendInvoiceEmailRequest request) {
+        CustomerOrder order = orderRepo.findByOrderId(orderId)
+                .orElseThrow(() -> new AppException("Order not found.", HttpStatus.NOT_FOUND));
+
+        CustomerSession session = sessionRepo.findBySessionId(order.getSessionId())
+                .orElseThrow(() -> new AppException("Session not found for this order.", HttpStatus.NOT_FOUND));
+
+        String email = request.getEmail() != null ? request.getEmail().trim() : null;
+        if (email == null || email.isBlank()) {
+            throw new AppException("Email is required to send the invoice.", HttpStatus.BAD_REQUEST);
+        }
+
+        // Store ONLY the email on tabletop_leo_customer_sessions.customer_email
+        session.setCustomerEmail(email);
+        sessionRepo.save(session);
+        log.info("Customer email stored on session {} for order {}", session.getSessionId(), orderId);
+
+        boolean paymentCompleted = "PAID".equalsIgnoreCase(order.getPaymentStatus());
+        if (!paymentCompleted) {
+            log.info("Invoice email skipped for order {} — payment not completed yet (status: {})",
+                    orderId, order.getPaymentStatus());
+            return ApiResponse.success("Email saved. Invoice will be sent once payment is completed.",
+                    SendInvoiceEmailResponse.builder()
+                            .orderId(orderId).email(email).emailSent(false)
+                            .message("Payment not completed yet.")
+                            .build());
+        }
+
+        // Reuse the exact same assembly logic as the GET API
+        InvoiceDetailsResponse invoice = assembleInvoice(orderId);
+        invoice.setCustomerEmail(email);
+
+        emailService.sendInvoiceEmail(email, invoice);
+        log.info("Invoice email dispatched for order {} to {}", orderId, email);
+
+        return ApiResponse.success("Invoice sent successfully", SendInvoiceEmailResponse.builder()
+                .orderId(orderId).email(email).emailSent(true)
+                .message("Invoice emailed successfully.")
+                .build());
+    }
+
+    // ── Shared invoice assembly (used by GET API and by sendInvoiceEmail) ──
+    private InvoiceDetailsResponse assembleInvoice(String orderId) {
+        CustomerOrder order = orderRepo.findByOrderId(orderId)
+                .orElseThrow(() -> new AppException("Order not found.", HttpStatus.NOT_FOUND));
+
+        BusinessInformation business = businessRepo.findByBusinessId(order.getBusinessId())
+                .orElseThrow(() -> new AppException("Business not found.", HttpStatus.NOT_FOUND));
+
+        String customerEmail = sessionRepo.findBySessionId(order.getSessionId())
+                .map(CustomerSession::getCustomerEmail)
+                .orElse(null);
+
+        List<OrderItem> orderItems = itemRepo.findAllByOrderId(orderId);
+        List<InvoiceDetailsResponse.InvoiceItemDto> items = orderItems.stream()
+                .map(i -> InvoiceDetailsResponse.InvoiceItemDto.builder()
+                        .productName(i.getProductName())
+                        .quantity(i.getQuantity())
+                        .unitPrice(i.getUnitPrice())
+                        .lineTotal(i.getLineTotal())
+                        .build())
+                .collect(Collectors.toList());
+
+        String paymentMethod = paymentRepo.findByOrderId(orderId)
+                .map(OrderPayment::getGatewayName)
+                .orElse(order.getPaymentMethod());
+
+        return InvoiceDetailsResponse.builder()
+                .invoiceNumber(order.getOrderNumber())
+                .orderId(order.getOrderId())
+                .adminId(order.getAdminId())
+                .businessId(order.getBusinessId())
+                .businessName(business.getBusinessName())
+                .customerName(order.getCustomerName())
+                .customerPhone(order.getCustomerPhone())
+                .customerEmail(customerEmail)
+                .tableNumber(order.getTableNumber())
+                .orderType(order.getOrderType())
+                .subtotal(order.getSubtotal())
+                .gstAmount(order.getTaxAmount())
+                .grandTotal(order.getGrandTotal())
+                .paymentStatus(order.getPaymentStatus())
+                .paymentMethod(paymentMethod)
+                .createdAt(order.getCreatedAt())
+                .items(items)
+                .build();
     }
 
     // ── HELPER ───────────────────────────────────────────────────
