@@ -16,6 +16,8 @@ public class ConfirmPaymentResponse {
     private String businessName;
     private String orderType;
     private String customerName;
+    private String customerPhone;
+    private String businessId;
     private Integer estimatedMinutes;
     private LocalDateTime createdAt;
 }

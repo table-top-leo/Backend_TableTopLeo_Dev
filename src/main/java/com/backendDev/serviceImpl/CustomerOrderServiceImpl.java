@@ -366,8 +366,10 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .grandTotal(order.getGrandTotal())
                 .gatewayName(gateway)
                 .businessName(business.getBusinessName())
+                .businessId(order.getBusinessId())
                 .orderType(order.getOrderType())
                 .customerName(order.getCustomerName())
+                .customerPhone(order.getCustomerPhone())
                 .estimatedMinutes(order.getEstimatedMinutes())
                 .createdAt(order.getCreatedAt())
                 .build());
@@ -422,7 +424,8 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         sessionRepo.save(session);
         log.info("Customer email stored on session {} for order {}", session.getSessionId(), orderId);
 
-        boolean paymentCompleted = "PAID".equalsIgnoreCase(order.getPaymentStatus());
+        String pStatus = order.getPaymentStatus();
+        boolean paymentCompleted = "PAID".equalsIgnoreCase(pStatus) || "PAY_AT_COUNTER".equalsIgnoreCase(pStatus);
         if (!paymentCompleted) {
             log.info("Invoice email skipped for order {} — payment not completed yet (status: {})",
                     orderId, order.getPaymentStatus());

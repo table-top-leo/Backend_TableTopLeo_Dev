@@ -193,8 +193,22 @@ public class SuggestionServiceImpl implements SuggestionService {
         }
         return businessRepo.findByAdminId(adminId)
                 .map(BusinessInformation::getBusinessType)
-                .map(bt -> bt.toLowerCase().trim())
+                .map(this::normalizeBusinessType)
                 .orElse("restaurant"); // fallback default
+    }
+
+    /**
+     * Normalizes a business type string to the canonical hyphenated id format
+     * used by tabletop_leo_category_suggestions / tabletop_leo_item_suggestions
+     * (e.g. "ice-cream-parlor"). Some older records may have been saved using
+     * the display label ("Ice Cream Parlor") instead of the id, so this also
+     * collapses whitespace/underscores into hyphens to keep both formats matching.
+     */
+    private String normalizeBusinessType(String bt) {
+        if (bt == null) return "restaurant";
+        return bt.trim()
+                .toLowerCase()
+                .replaceAll("[\\s_]+", "-");
     }
 
     private CategorySuggestionResponse toCatResponse(CategorySuggestion s) {
